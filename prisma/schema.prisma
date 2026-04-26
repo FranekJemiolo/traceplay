@@ -52,6 +52,7 @@ model Lesson {
   updatedAt   DateTime @updatedAt
 
   progress    StudentProgress[]
+  modules     LessonModule[]
 }
 
 model Module {
