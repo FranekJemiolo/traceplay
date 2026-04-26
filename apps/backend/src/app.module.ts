@@ -10,6 +10,8 @@ import { CurriculumModule } from './curriculum/curriculum.module';
 import { QuizModule } from './quiz/quiz.module';
 import { RuntimeModule } from './runtime/runtime.module';
 import { UploadModule } from './upload/upload.module';
+import { ProcessingModule } from './processing/processing.module';
+import { ProgressModule } from './progress/progress.module';
 import { ClassroomGateway } from './classroom/classroom.gateway';
 
 @Module({
@@ -27,6 +29,8 @@ import { ClassroomGateway } from './classroom/classroom.gateway';
     QuizModule,
     RuntimeModule,
     UploadModule,
+    ProcessingModule,
+    ProgressModule,
   ],
   providers: [ClassroomGateway],
 })
