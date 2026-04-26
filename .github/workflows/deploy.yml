@@ -45,3 +45,4 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./apps/web/out
           destination_dir: traceplay
+          force_orphan: true
