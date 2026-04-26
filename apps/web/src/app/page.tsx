@@ -61,6 +61,13 @@ export default function Home() {
 
         <Card className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Lesson Preview</h2>
+          <div className="mb-4">
+            <img 
+              src="/generated_turtle.png" 
+              alt="Sample tracing image - turtle" 
+              className="w-full h-auto rounded-lg border border-gray-200"
+            />
+          </div>
           <div ref={containerRef} className="w-full" />
           <div className="mt-4 flex gap-4">
             <Button onClick={handleLoadLesson}>Load Lesson</Button>
