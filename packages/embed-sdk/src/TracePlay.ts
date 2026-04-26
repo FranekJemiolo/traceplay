@@ -8,7 +8,7 @@ export class TracePlay {
   constructor(config: TracePlayConfig) {
     this.config = {
       mode: 'lesson',
-      apiUrl: 'https://api.traceplay.com',
+      apiUrl: config.apiUrl || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
       ...config,
     };
   }
