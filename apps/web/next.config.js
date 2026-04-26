@@ -6,6 +6,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  basePath: process.env.GITHUB_PAGES ? '/traceplay' : '',
+  assetPrefix: process.env.GITHUB_PAGES ? '/traceplay' : '',
 }
 
 module.exports = nextConfig

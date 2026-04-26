@@ -38,6 +38,7 @@ jobs:
         run: pnpm run build --filter=@traceplay/web
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          GITHUB_PAGES: true
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
