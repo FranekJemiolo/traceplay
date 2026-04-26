@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  role          UserRole  @default(STUDENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions      Session[]
+  progress      StudentProgress[]
+  storybooks     Storybook[]
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+model Storybook {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  imageUrl    String?
+  createdBy   String
+  creator     User     @relation(fields: [createdBy], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lessons     Lesson[]
+}
+
+model Lesson {
+  id          String   @id @default(uuid())
+  storybookId String
+  storybook   Storybook @relation(fields: [storybookId], references: [id])
+  title       String
+  order       Int
+  imageUrl    String?
+  shapes      Json
+  quizzes     Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  progress    StudentProgress[]
+}
+
+model Module {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lessons     LessonModule[]
+  skills      Skill[]
+}
+
+model LessonModule {
+  id        String @id @default(uuid())
+  lessonId  String
+  moduleId  String
+  lesson    Lesson  @relation(fields: [lessonId], references: [id])
+  module    Module  @relation(fields: [moduleId], references: [id])
+
+  @@unique([lessonId, moduleId])
+}
+
+model Skill {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  moduleId    String?
+  module      Module?  @relation(fields: [moduleId], references: [id])
+  dependencies Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model StudentProgress {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  lessonId    String
+  lesson      Lesson   @relation(fields: [lessonId], references: [id])
+  completed   Boolean  @default(false)
+  score       Float?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, lessonId])
+}
+
+model Session {
+  id          String   @id @default(uuid())
+  teacherId   String
+  teacher     User     @relation(fields: [teacherId], references: [id])
+  code        String   @unique
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  attendees   SessionAttendee[]
+}
+
+model SessionAttendee {
+  id        String   @id @default(uuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id])
+  userId    String
+  joinedAt  DateTime @default(now())
+
+  @@unique([sessionId, userId])
+}
+
+model Quiz {
+  id          String   @id @default(uuid())
+  prompt      String
+  type        QuizType
+  options     Json
+  correctAnswer String
+  lessonId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum QuizType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  FILL_BLANK
+}
