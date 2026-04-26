@@ -53,7 +53,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build packages
-        run: pnpm run build --filter=@traceplay/*
+        run: pnpm run build --filter=@traceplay/runtime --filter=@traceplay/vector --filter=@traceplay/annotation --filter=@traceplay/curriculum --filter=@traceplay/quiz --filter=@traceplay/ui --filter=@traceplay/embed-sdk
 
       - name: Build web app (full mode)
         run: pnpm run build --filter=@traceplay/web
