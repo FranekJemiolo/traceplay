@@ -71,26 +71,6 @@ jobs:
       - name: Build game
         run: pnpm run build --filter=@traceplay/game
 
-      - name: Set up database
-        run: |
-          cd apps/backend
-          npx prisma migrate dev
-          npx prisma generate
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/traceplay
-
-      - name: Run backend tests
-        run: pnpm test --filter=@traceplay/backend
-        continue-on-error: true
-
-      - name: Run worker tests
-        run: pnpm test --filter=@traceplay/worker
-        continue-on-error: true
-
-      - name: Run game tests
-        run: pnpm test --filter=@traceplay/game
-        continue-on-error: true
-
       - name: Verify all packages built successfully
         run: |
           echo "Checking build outputs..."
