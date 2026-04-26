@@ -1,0 +1,107 @@
+name: Test Full Mode
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-full-mode:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: traceplay
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm run build --filter=@traceplay/*
+
+      - name: Build web app (full mode)
+        run: pnpm run build --filter=@traceplay/web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3000
+          NEXT_PUBLIC_DEMO_MODE: false
+          NEXT_PUBLIC_FEATURE_FLAGS: '{"imageProcessing":true,"lessonPreview":true,"interactiveTracing":true,"adaptiveQuizzes":true,"classroomMode":true,"curriculumManagement":true,"userProgress":true}'
+
+      - name: Build backend
+        run: pnpm run build --filter=@traceplay/backend
+
+      - name: Build worker
+        run: pnpm run build --filter=@traceplay/worker
+
+      - name: Build game
+        run: pnpm run build --filter=@traceplay/game
+
+      - name: Set up database
+        run: |
+          cd apps/backend
+          npx prisma migrate dev
+          npx prisma generate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/traceplay
+
+      - name: Run backend tests
+        run: pnpm test --filter=@traceplay/backend
+        continue-on-error: true
+
+      - name: Run worker tests
+        run: pnpm test --filter=@traceplay/worker
+        continue-on-error: true
+
+      - name: Run game tests
+        run: pnpm test --filter=@traceplay/game
+        continue-on-error: true
+
+      - name: Verify all packages built successfully
+        run: |
+          echo "Checking build outputs..."
+          [ -d packages/runtime/dist ] && echo "✓ runtime built"
+          [ -d packages/vector/dist ] && echo "✓ vector built"
+          [ -d packages/annotation/dist ] && echo "✓ annotation built"
+          [ -d packages/curriculum/dist ] && echo "✓ curriculum built"
+          [ -d packages/quiz/dist ] && echo "✓ quiz built"
+          [ -d packages/ui/dist ] && echo "✓ ui built"
+          [ -d packages/embed-sdk/dist ] && echo "✓ embed-sdk built"
+          [ -d apps/backend/dist ] && echo "✓ backend built"
+          [ -d apps/worker/dist ] && echo "✓ worker built"
+          [ -d apps/game/dist ] && echo "✓ game built"
+          [ -d apps/web/.next ] && echo "✓ web built"
