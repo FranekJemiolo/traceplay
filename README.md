@@ -181,10 +181,20 @@ The demo mode runs entirely in the browser without backend dependencies. This is
 - UI/UX development
 
 **Demo Mode Features:**
-- Static image display
+- Browser-based image processing with OpenCV.js
+- Image upload for coloring page conversion
+- Interactive curriculum view with mock data
+- Clickable menu items with demo alerts
+- Sample lesson preview with contour detection
 - No backend API calls
 - No database or Redis required
 - Runs on GitHub Pages: https://franekjemiolo.github.io/traceplay/
+
+**Demo Mode Capabilities:**
+- **Image Upload**: Upload any image and convert it to a coloring page using OpenCV.js contour detection
+- **Curriculum View**: Browse demo curriculum with 3 modules, 6 lessons, and 9 skills
+- **Sample Lessons**: Load sample lessons with pre-generated tracing images
+- **Feature Exploration**: Click on Interactive Tracing, Adaptive Quizzes, and Classroom Mode cards to see demo alerts explaining what each feature does in the full version
 
 **To run locally in demo mode:**
 ```bash
