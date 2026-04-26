@@ -71,6 +71,9 @@ jobs:
       - name: Build game
         run: pnpm run build --filter=@traceplay/game
 
+      - name: Run workflow integration tests
+        run: ./scripts/test-workflow.sh
+
       - name: Verify all packages built successfully
         run: |
           echo "Checking build outputs..."
