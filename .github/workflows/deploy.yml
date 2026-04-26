@@ -31,9 +31,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm run build --filter=@traceplay/*
-
       - name: Build web app
         run: pnpm run build --filter=@traceplay/web
         env:
