@@ -64,6 +64,8 @@ jobs:
 
       - name: Build backend
         run: pnpm run build --filter=@traceplay/backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/traceplay
 
       - name: Build worker
         run: pnpm run build --filter=@traceplay/worker
