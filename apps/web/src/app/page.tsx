@@ -193,7 +193,7 @@ export default function Home() {
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-4xl font-bold text-gray-900 mb-2">
-          Welcome to TracePlay
+          Welcome to TracePlay Demo
         </h1>
         <p className="text-lg text-gray-600 mb-8">
           AI-powered interactive learning platform
