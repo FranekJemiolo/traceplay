@@ -39,6 +39,7 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
           GITHUB_PAGES: true
+          NEXT_PUBLIC_DEMO_MODE: true
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

@@ -172,21 +172,71 @@ OPENAI_API_KEY=your_key_here
 
 ## Deployment
 
-### GitHub Pages
-The web app is automatically deployed to GitHub Pages on push to main. Configure:
-- GitHub token in repository secrets
-- `NEXT_PUBLIC_API_URL` in repository secrets
+TracePlay supports two deployment modes:
 
-### Production
+### Demo Mode (Frontend-Only)
+The demo mode runs entirely in the browser without backend dependencies. This is ideal for:
+- GitHub Pages deployment
+- Quick demos and testing
+- UI/UX development
+
+**Demo Mode Features:**
+- Static image display
+- No backend API calls
+- No database or Redis required
+- Runs on GitHub Pages: https://franekjemiolo.github.io/traceplay/
+
+**To run locally in demo mode:**
+```bash
+NEXT_PUBLIC_DEMO_MODE=true pnpm --filter @traceplay/web dev
+```
+
+### Full Mode (With Backend)
+The full mode includes all backend services for production use. This requires:
+- PostgreSQL database
+- Redis for caching and job queues
+- NestJS backend API
+- BullMQ worker for image processing
+
+**Full Mode Features:**
+- Real-time image processing with OpenCV
+- AI-powered shape annotation
+- Adaptive quiz generation
+- Real-time classroom sessions via WebSockets
+- Curriculum management and progress tracking
+
+**To run locally in full mode:**
+```bash
+# Start all services with Docker Compose
+docker-compose up -d
+
+# Or run services individually
+pnpm --filter @traceplay/backend dev
+pnpm --filter @traceplay/worker start
+pnpm --filter @traceplay/web dev
+```
+
+**Production Deployment:**
 1. Build all packages:
 ```bash
 pnpm build
 ```
 
-2. Deploy with Docker:
+2. Deploy with Docker Compose:
 ```bash
 docker-compose -f docker-compose.prod.yml up -d
 ```
+
+3. Or deploy to Kubernetes:
+```bash
+kubectl apply -f infrastructure/k8s/
+```
+
+### GitHub Pages
+The web app is automatically deployed to GitHub Pages in demo mode on push to main. The deployment:
+- Runs in demo mode (frontend-only)
+- No backend configuration required
+- Automatically builds and deploys via GitHub Actions
 
 ## Development
 

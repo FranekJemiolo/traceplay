@@ -1,34 +1,18 @@
 'use client';
 
 import { Button, Card, Progress } from '@traceplay/ui';
-import { TracePlay } from '@traceplay/embed-sdk';
-import { useEffect, useRef } from 'react';
+import { useState } from 'react';
+
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || typeof window !== 'undefined' && window.location.hostname.includes('github.io');
 
 export default function Home() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const tracePlayRef = useRef<TracePlay | null>(null);
-
-  useEffect(() => {
-    if (containerRef.current && !tracePlayRef.current) {
-      tracePlayRef.current = new TracePlay({
-        apiKey: process.env.NEXT_PUBLIC_API_KEY || 'demo-key',
-        mode: 'lesson',
-      });
-
-      tracePlayRef.current.mount(containerRef.current, {
-        width: '100%',
-        height: '500px',
-        theme: 'light',
-      });
-    }
-
-    return () => {
-      tracePlayRef.current?.destroy();
-    };
-  }, []);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const handleLoadLesson = () => {
-    tracePlayRef.current?.loadLesson('lesson-1');
+    if (isDemoMode) {
+      // In demo mode, just show the sample image
+      setSelectedImage('/generated_turtle.png');
+    }
   };
 
   return (
@@ -61,14 +45,21 @@ export default function Home() {
 
         <Card className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Lesson Preview</h2>
+          {isDemoMode && (
+            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-800 mb-2">
+                <strong>Demo Mode:</strong> This is a frontend-only demo. 
+                Full backend integration requires Docker/Kubernetes deployment.
+              </p>
+            </div>
+          )}
           <div className="mb-4">
             <img 
-              src="/generated_turtle.png" 
+              src={selectedImage || '/generated_turtle.png'} 
               alt="Sample tracing image - turtle" 
               className="w-full h-auto rounded-lg border border-gray-200"
             />
           </div>
-          <div ref={containerRef} className="w-full" />
           <div className="mt-4 flex gap-4">
             <Button onClick={handleLoadLesson}>Load Lesson</Button>
             <Button variant="outline">View Curriculum</Button>
