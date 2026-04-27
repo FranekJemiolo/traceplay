@@ -8,9 +8,8 @@ const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || typeof window
 const basePath = process.env.GITHUB_PAGES === 'true' ? '/traceplay' : '';
 
 export default function Home() {
-  const [selectedImage, setSelectedImage] = useState<string | null>(
-    isDemoMode ? `${basePath}/generated_turtle.png` : null
-  );
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [processedImage, setProcessedImage] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [opencvReady, setOpencvReady] = useState(false);
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(getFeatureFlags());
@@ -21,6 +20,13 @@ export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    // Set initial image in demo mode
+    if (isDemoMode) {
+      const imagePath = `${basePath}/generated_turtle.png`;
+      console.log('Setting initial image:', imagePath);
+      setSelectedImage(imagePath);
+    }
+
     // Check if OpenCV is loaded
     const checkOpenCV = setInterval(() => {
       if (typeof window !== 'undefined' && (window as any).cv) {
@@ -36,6 +42,7 @@ export default function Home() {
     if (isDemoMode) {
       if (isProcessing) return;
       
+      setProcessedImage(false);
       setSelectedImage(`${basePath}/generated_turtle.png`);
       
       if (opencvReady && canvasRef.current) {
@@ -119,6 +126,7 @@ export default function Home() {
             
             setProcessingStage('');
             setIsProcessing(false);
+            setProcessedImage(true);
           };
         } catch (error) {
           console.error('OpenCV processing error:', error);
@@ -156,6 +164,7 @@ export default function Home() {
   const handleProcessImage = async () => {
     if (!selectedImage || !opencvReady || !canvasRef.current || !conversionMode) return;
     
+    console.log('Processing image with URL:', selectedImage);
     setIsProcessing(true);
     setProcessingStage('Loading image...');
     setEstimatedTime(2);
@@ -164,7 +173,14 @@ export default function Home() {
     try {
       const cv = (window as any).cv;
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.src = selectedImage;
+      
+      img.onerror = () => {
+        console.error('Failed to load image for processing:', img.src);
+        setProcessingStage('');
+        setIsProcessing(false);
+      };
       
       img.onload = async () => {
         setProcessingStage('Reading image with OpenCV...');
@@ -235,6 +251,7 @@ export default function Home() {
         
         setProcessingStage('');
         setIsProcessing(false);
+        setProcessedImage(true);
       };
     } catch (error) {
       console.error('OpenCV processing error:', error);
@@ -359,7 +376,7 @@ export default function Home() {
               </div>
             )}
             <div className="mb-4">
-              {selectedImage && !isProcessing ? (
+              {processedImage && !isProcessing ? (
                 <canvas 
                   ref={canvasRef}
                   className="w-full h-auto rounded-lg border border-gray-200"
