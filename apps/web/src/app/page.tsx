@@ -17,8 +17,17 @@ export default function Home() {
 
   useEffect(() => {
     // Set basePath at runtime for GitHub Pages
+    let detectedBasePath = '';
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/traceplay')) {
-      setBasePath('/traceplay');
+      detectedBasePath = '/traceplay';
+    }
+    setBasePath(detectedBasePath);
+
+    // Set initial image in demo mode
+    if (isDemoMode) {
+      const imagePath = `${detectedBasePath}/generated_turtle.png`;
+      console.log('Setting initial image:', imagePath);
+      setSelectedImage(imagePath);
     }
 
     // Check if OpenCV is loaded
@@ -31,15 +40,6 @@ export default function Home() {
 
     return () => clearInterval(checkOpenCV);
   }, []);
-
-  useEffect(() => {
-    // Set initial image in demo mode after basePath is set
-    if (isDemoMode && basePath) {
-      const imagePath = `${basePath}/generated_turtle.png`;
-      console.log('Setting initial image:', imagePath);
-      setSelectedImage(imagePath);
-    }
-  }, [basePath]);
 
   const handleLoadSampleImage = async () => {
     if (isDemoMode) {
