@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 
 const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || typeof window !== 'undefined' && window.location.hostname.includes('github.io');
-const basePath = process.env.GITHUB_PAGES === 'true' ? '/traceplay' : '';
 
 export default function Home() {
+  const [basePath, setBasePath] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -16,11 +16,9 @@ export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    // Set initial image in demo mode
-    if (isDemoMode) {
-      const imagePath = `${basePath}/generated_turtle.png`;
-      console.log('Setting initial image:', imagePath);
-      setSelectedImage(imagePath);
+    // Set basePath at runtime for GitHub Pages
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/traceplay')) {
+      setBasePath('/traceplay');
     }
 
     // Check if OpenCV is loaded
@@ -33,6 +31,15 @@ export default function Home() {
 
     return () => clearInterval(checkOpenCV);
   }, []);
+
+  useEffect(() => {
+    // Set initial image in demo mode after basePath is set
+    if (isDemoMode && basePath) {
+      const imagePath = `${basePath}/generated_turtle.png`;
+      console.log('Setting initial image:', imagePath);
+      setSelectedImage(imagePath);
+    }
+  }, [basePath]);
 
   const handleLoadSampleImage = async () => {
     if (isDemoMode) {
@@ -179,9 +186,8 @@ export default function Home() {
       const cv = (window as any).cv;
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      // Prepend basePath for GitHub Pages
-      const imageUrl = selectedImage.startsWith('http') ? selectedImage : `${basePath}${selectedImage}`;
-      img.src = imageUrl;
+      // selectedImage already includes basePath from initialization
+      img.src = selectedImage;
       
       img.onerror = () => {
         console.error('Failed to load image for processing:', img.src);
