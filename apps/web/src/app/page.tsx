@@ -37,14 +37,19 @@ export default function Home() {
         setIsProcessing(true);
         setProcessingStage('Loading image...');
         setEstimatedTime(2);
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         try {
           const cv = (window as any).cv;
           const img = new Image();
           img.crossOrigin = 'anonymous';
           img.src = '/generated_turtle.png';
           
-          img.onload = () => {
+          img.onload = async () => {
             setProcessingStage('Reading image with OpenCV...');
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
             const canvas = canvasRef.current;
             if (!canvas) return;
             
@@ -61,16 +66,19 @@ export default function Home() {
             
             setProcessingStage('Converting to grayscale...');
             setEstimatedTime(1);
+            await new Promise(resolve => setTimeout(resolve, 100));
             // Convert to grayscale
             cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
             
             setProcessingStage('Applying threshold...');
             setEstimatedTime(1);
+            await new Promise(resolve => setTimeout(resolve, 100));
             // Apply threshold
             cv.threshold(dst, dst, 127, 255, cv.THRESH_BINARY);
             
             setProcessingStage('Finding contours...');
             setEstimatedTime(2);
+            await new Promise(resolve => setTimeout(resolve, 100));
             // Find contours
             const contours = new cv.MatVector();
             const hierarchy = new cv.Mat();
@@ -78,11 +86,13 @@ export default function Home() {
             
             setProcessingStage('Drawing contours...');
             setEstimatedTime(1);
+            await new Promise(resolve => setTimeout(resolve, 100));
             // Draw contours
             cv.drawContours(src, contours, -1, [0, 255, 0, 255], 2);
             
             setProcessingStage('Rendering result...');
             setEstimatedTime(1);
+            await new Promise(resolve => setTimeout(resolve, 100));
             // Display result
             cv.imshow(canvas, src);
             
@@ -128,19 +138,23 @@ export default function Home() {
     }
   };
 
-  const handleProcessImage = () => {
+  const handleProcessImage = async () => {
     if (!selectedImage || !opencvReady || !canvasRef.current || !conversionMode) return;
     
     setIsProcessing(true);
     setProcessingStage('Loading image...');
     setEstimatedTime(2);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     try {
       const cv = (window as any).cv;
       const img = new Image();
       img.src = selectedImage;
       
-      img.onload = () => {
+      img.onload = async () => {
         setProcessingStage('Reading image with OpenCV...');
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         const canvas = canvasRef.current;
         if (!canvas) return;
         
@@ -157,16 +171,19 @@ export default function Home() {
         
         setProcessingStage('Converting to grayscale...');
         setEstimatedTime(1);
+        await new Promise(resolve => setTimeout(resolve, 100));
         // Convert to grayscale
         cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
         
         setProcessingStage('Applying threshold...');
         setEstimatedTime(1);
+        await new Promise(resolve => setTimeout(resolve, 100));
         // Apply threshold
         cv.threshold(dst, dst, 127, 255, cv.THRESH_BINARY);
         
         setProcessingStage('Finding contours...');
         setEstimatedTime(2);
+        await new Promise(resolve => setTimeout(resolve, 100));
         // Find contours
         const contours = new cv.MatVector();
         const hierarchy = new cv.Mat();
@@ -174,6 +191,7 @@ export default function Home() {
         
         setProcessingStage('Generating output...');
         setEstimatedTime(2);
+        await new Promise(resolve => setTimeout(resolve, 100));
         if (conversionMode === 'coloring') {
           // Draw contours as outlines for coloring page
           cv.drawContours(src, contours, -1, [0, 0, 0, 255], 2);
@@ -190,6 +208,7 @@ export default function Home() {
         
         setProcessingStage('Rendering result...');
         setEstimatedTime(1);
+        await new Promise(resolve => setTimeout(resolve, 100));
         // Display result
         cv.imshow(canvas, src);
         
