@@ -4,9 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { getFeatureFlags, FeatureFlags } from '../config/featureFlags';
 import CurriculumView from '../components/CurriculumView';
 
-const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
-const basePath = isGitHubPages ? '/traceplay' : '';
-const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || isGitHubPages;
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || typeof window !== 'undefined' && window.location.hostname.includes('github.io');
 
 export default function Home() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -15,6 +13,8 @@ export default function Home() {
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(getFeatureFlags());
   const [showCurriculum, setShowCurriculum] = useState(false);
   const [conversionMode, setConversionMode] = useState<'coloring' | 'dots' | null>(null);
+  const [processingStage, setProcessingStage] = useState<string>('');
+  const [estimatedTime, setEstimatedTime] = useState<number>(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -31,17 +31,20 @@ export default function Home() {
 
   const handleLoadLesson = async () => {
     if (isDemoMode) {
-      setSelectedImage(`${basePath}/generated_turtle.png`);
+      setSelectedImage('/generated_turtle.png');
       
       if (opencvReady && canvasRef.current) {
         setIsProcessing(true);
+        setProcessingStage('Loading image...');
+        setEstimatedTime(2);
         try {
           const cv = (window as any).cv;
           const img = new Image();
           img.crossOrigin = 'anonymous';
-          img.src = `${basePath}/generated_turtle.png`;
+          img.src = '/generated_turtle.png';
           
           img.onload = () => {
+            setProcessingStage('Reading image with OpenCV...');
             const canvas = canvasRef.current;
             if (!canvas) return;
             
@@ -56,20 +59,30 @@ export default function Home() {
             const src = cv.imread(canvas);
             const dst = new cv.Mat();
             
+            setProcessingStage('Converting to grayscale...');
+            setEstimatedTime(1);
             // Convert to grayscale
             cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
             
+            setProcessingStage('Applying threshold...');
+            setEstimatedTime(1);
             // Apply threshold
             cv.threshold(dst, dst, 127, 255, cv.THRESH_BINARY);
             
+            setProcessingStage('Finding contours...');
+            setEstimatedTime(2);
             // Find contours
             const contours = new cv.MatVector();
             const hierarchy = new cv.Mat();
             cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
             
+            setProcessingStage('Drawing contours...');
+            setEstimatedTime(1);
             // Draw contours
             cv.drawContours(src, contours, -1, [0, 255, 0, 255], 2);
             
+            setProcessingStage('Rendering result...');
+            setEstimatedTime(1);
             // Display result
             cv.imshow(canvas, src);
             
@@ -79,10 +92,12 @@ export default function Home() {
             contours.delete();
             hierarchy.delete();
             
+            setProcessingStage('');
             setIsProcessing(false);
           };
         } catch (error) {
           console.error('OpenCV processing error:', error);
+          setProcessingStage('');
           setIsProcessing(false);
         }
       }
@@ -117,12 +132,15 @@ export default function Home() {
     if (!selectedImage || !opencvReady || !canvasRef.current || !conversionMode) return;
     
     setIsProcessing(true);
+    setProcessingStage('Loading image...');
+    setEstimatedTime(2);
     try {
       const cv = (window as any).cv;
       const img = new Image();
       img.src = selectedImage;
       
       img.onload = () => {
+        setProcessingStage('Reading image with OpenCV...');
         const canvas = canvasRef.current;
         if (!canvas) return;
         
@@ -137,17 +155,25 @@ export default function Home() {
         const src = cv.imread(canvas);
         const dst = new cv.Mat();
         
+        setProcessingStage('Converting to grayscale...');
+        setEstimatedTime(1);
         // Convert to grayscale
         cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
         
+        setProcessingStage('Applying threshold...');
+        setEstimatedTime(1);
         // Apply threshold
         cv.threshold(dst, dst, 127, 255, cv.THRESH_BINARY);
         
+        setProcessingStage('Finding contours...');
+        setEstimatedTime(2);
         // Find contours
         const contours = new cv.MatVector();
         const hierarchy = new cv.Mat();
         cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
         
+        setProcessingStage('Generating output...');
+        setEstimatedTime(2);
         if (conversionMode === 'coloring') {
           // Draw contours as outlines for coloring page
           cv.drawContours(src, contours, -1, [0, 0, 0, 255], 2);
@@ -162,6 +188,8 @@ export default function Home() {
           }
         }
         
+        setProcessingStage('Rendering result...');
+        setEstimatedTime(1);
         // Display result
         cv.imshow(canvas, src);
         
@@ -171,10 +199,12 @@ export default function Home() {
         contours.delete();
         hierarchy.delete();
         
+        setProcessingStage('');
         setIsProcessing(false);
       };
     } catch (error) {
       console.error('OpenCV processing error:', error);
+      setProcessingStage('');
       setIsProcessing(false);
     }
   };
@@ -302,7 +332,7 @@ export default function Home() {
                 />
               ) : (
                 <img 
-                  src={selectedImage || `${basePath}/generated_turtle.png`} 
+                  src={selectedImage || '/generated_turtle.png'} 
                   alt="Sample tracing image - turtle" 
                   className="w-full h-auto rounded-lg border border-gray-200"
                 />
@@ -310,9 +340,14 @@ export default function Home() {
             </div>
             {isProcessing && (
               <div className="mb-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                <p className="text-sm text-yellow-800">
-                  Processing image with OpenCV.js...
+                <p className="text-sm text-yellow-800 font-semibold mb-1">
+                  {processingStage || 'Processing image with OpenCV.js...'}
                 </p>
+                {estimatedTime > 0 && (
+                  <p className="text-xs text-yellow-700">
+                    Estimated time remaining: ~{estimatedTime} second{estimatedTime !== 1 ? 's' : ''}
+                  </p>
+                )}
               </div>
             )}
             <div className="mt-4 flex gap-4 flex-wrap">
