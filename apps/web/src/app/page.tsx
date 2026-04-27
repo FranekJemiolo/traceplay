@@ -281,7 +281,15 @@ export default function Home() {
       if (printWindow) {
         printWindow.document.write(`
           <html>
-            <head><title>Print Image</title></head>
+            <head>
+              <title>Print Image</title>
+              <style>
+                @media print {
+                  body { margin: 0; padding: 0; }
+                  img { max-width: 100%; max-height: 100vh; }
+                }
+              </style>
+            </head>
             <body style="margin:0;padding:20px;display:flex;justify-content:center;align-items:center;min-height:100vh;">
               <img src="${dataUrl}" style="max-width:100%;max-height:100vh;" />
             </body>
@@ -324,15 +332,16 @@ export default function Home() {
                   OpenCV.js Status: {opencvReady ? '✓ Ready' : '⏳ Loading...'}
                 </p>
               </div>
-            <div className="mb-4 relative">
+            <div className="mb-4">
               <img 
+                id="background-image"
                 src={selectedImage || `${basePath}/generated_turtle.png`} 
                 alt="Sample image for conversion" 
-                className={`${processedImage && !isProcessing ? 'opacity-10' : 'opacity-100'} w-full h-auto rounded-lg border border-gray-200 absolute top-0 left-0`}
+                className={`${processedImage && !isProcessing ? 'opacity-10' : 'opacity-100'} w-full h-auto rounded-lg border border-gray-200`}
               />
               <canvas 
                 ref={canvasRef}
-                className={`${processedImage && !isProcessing ? 'block' : 'hidden'} w-full h-auto rounded-lg border border-gray-200 relative z-10`}
+                className={`${processedImage && !isProcessing ? 'block' : 'hidden'} w-full h-auto rounded-lg border border-gray-200`}
               />
             </div>
             {isProcessing && (
