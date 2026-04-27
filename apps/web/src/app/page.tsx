@@ -4,7 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { getFeatureFlags, FeatureFlags } from '../config/featureFlags';
 import CurriculumView from '../components/CurriculumView';
 
-const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+const basePath = isGitHubPages ? '/traceplay' : '';
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || isGitHubPages;
 
 export default function Home() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export default function Home() {
 
   const handleLoadLesson = async () => {
     if (isDemoMode) {
-      setSelectedImage('/generated_turtle.png');
+      setSelectedImage(`${basePath}/generated_turtle.png`);
       
       if (opencvReady && canvasRef.current) {
         setIsProcessing(true);
@@ -37,7 +39,7 @@ export default function Home() {
           const cv = (window as any).cv;
           const img = new Image();
           img.crossOrigin = 'anonymous';
-          img.src = '/generated_turtle.png';
+          img.src = `${basePath}/generated_turtle.png`;
           
           img.onload = () => {
             const canvas = canvasRef.current;
@@ -300,7 +302,7 @@ export default function Home() {
                 />
               ) : (
                 <img 
-                  src={selectedImage || '/generated_turtle.png'} 
+                  src={selectedImage || `${basePath}/generated_turtle.png`} 
                   alt="Sample tracing image - turtle" 
                   className="w-full h-auto rounded-lg border border-gray-200"
                 />
