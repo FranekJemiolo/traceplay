@@ -454,7 +454,7 @@ export default function Home() {
                       {isProcessing ? 'Processing...' : 'Generate'}
                     </button>
                   )}
-                  {selectedImage && !isProcessing && (
+                  {processedImage && !isProcessing && (
                     <>
                       <button 
                         onClick={handlePrintImage}
