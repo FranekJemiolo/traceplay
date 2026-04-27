@@ -236,16 +236,22 @@ export default function Home() {
         setProcessingStage('Generating output...');
         setEstimatedTime(2);
         await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Create white background image
+        const white = new cv.Mat();
+        cv.cvtColor(src, white, cv.COLOR_RGBA2GRAY, 0);
+        white.setTo(new cv.Scalar(255, 255, 255, 255));
+        
         if (conversionMode === 'coloring') {
-          // Draw contours as outlines for coloring page
-          cv.drawContours(src, contours, -1, [0, 0, 0, 255], 2);
+          // Draw contours as black outlines on white background for coloring page
+          cv.drawContours(white, contours, -1, [0, 0, 0, 255], 2);
         } else if (conversionMode === 'dots') {
-          // Draw dots at contour points for connect-the-dots
+          // Draw black dots at contour points on white background for connect-the-dots
           for (let i = 0; i < contours.size(); i++) {
             const contour = contours.get(i);
             for (let j = 0; j < contour.rows; j += 10) {
               const point = contour.data32S.subarray(j * 2, j * 2 + 2);
-              cv.circle(src, new cv.Point(point[0], point[1]), 3, [0, 0, 0, 255], -1);
+              cv.circle(white, new cv.Point(point[0], point[1]), 3, [0, 0, 0, 255], -1);
             }
           }
         }
@@ -254,7 +260,10 @@ export default function Home() {
         setEstimatedTime(1);
         await new Promise(resolve => setTimeout(resolve, 100));
         // Display result
-        cv.imshow(canvas, src);
+        cv.imshow(canvas, white);
+        
+        // Cleanup
+        white.delete();
         
         // Cleanup
         src.delete();
@@ -332,7 +341,7 @@ export default function Home() {
                   OpenCV.js Status: {opencvReady ? '✓ Ready' : '⏳ Loading...'}
                 </p>
               </div>
-            <div className="mb-4">
+            <div className="mb-4 relative">
               <img 
                 id="background-image"
                 src={selectedImage || `${basePath}/generated_turtle.png`} 
@@ -341,7 +350,7 @@ export default function Home() {
               />
               <canvas 
                 ref={canvasRef}
-                className={`${processedImage && !isProcessing ? 'block' : 'hidden'} w-full h-auto rounded-lg border border-gray-200`}
+                className={`${processedImage && !isProcessing ? 'block' : 'hidden'} w-full h-auto rounded-lg border border-gray-200 absolute top-0 left-0`}
               />
             </div>
             {isProcessing && (
