@@ -4,7 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { getFeatureFlags, FeatureFlags } from '../config/featureFlags';
 import CurriculumView from '../components/CurriculumView';
 
-const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+const isGitHubPages = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+const basePath = isGitHubPages ? '/traceplay' : '';
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || isGitHubPages;
 
 export default function Home() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -12,6 +14,7 @@ export default function Home() {
   const [opencvReady, setOpencvReady] = useState(false);
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(getFeatureFlags());
   const [showCurriculum, setShowCurriculum] = useState(false);
+  const [conversionMode, setConversionMode] = useState<'coloring' | 'dots' | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -28,7 +31,7 @@ export default function Home() {
 
   const handleLoadLesson = async () => {
     if (isDemoMode) {
-      setSelectedImage('/generated_turtle.png');
+      setSelectedImage(`${basePath}/generated_turtle.png`);
       
       if (opencvReady && canvasRef.current) {
         setIsProcessing(true);
@@ -36,7 +39,7 @@ export default function Home() {
           const cv = (window as any).cv;
           const img = new Image();
           img.crossOrigin = 'anonymous';
-          img.src = '/generated_turtle.png';
+          img.src = `${basePath}/generated_turtle.png`;
           
           img.onload = () => {
             const canvas = canvasRef.current;
@@ -111,7 +114,7 @@ export default function Home() {
   };
 
   const handleProcessImage = () => {
-    if (!selectedImage || !opencvReady || !canvasRef.current) return;
+    if (!selectedImage || !opencvReady || !canvasRef.current || !conversionMode) return;
     
     setIsProcessing(true);
     try {
@@ -137,7 +140,7 @@ export default function Home() {
         // Convert to grayscale
         cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY, 0);
         
-        // Apply threshold for coloring page effect
+        // Apply threshold
         cv.threshold(dst, dst, 127, 255, cv.THRESH_BINARY);
         
         // Find contours
@@ -145,8 +148,19 @@ export default function Home() {
         const hierarchy = new cv.Mat();
         cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
         
-        // Draw contours as outlines
-        cv.drawContours(src, contours, -1, [0, 0, 0, 255], 2);
+        if (conversionMode === 'coloring') {
+          // Draw contours as outlines for coloring page
+          cv.drawContours(src, contours, -1, [0, 0, 0, 255], 2);
+        } else if (conversionMode === 'dots') {
+          // Draw dots at contour points for connect-the-dots
+          for (let i = 0; i < contours.size(); i++) {
+            const contour = contours.get(i);
+            for (let j = 0; j < contour.rows; j += 10) {
+              const point = contour.data32S.subarray(j * 2, j * 2 + 2);
+              cv.circle(src, new cv.Point(point[0], point[1]), 3, [0, 0, 0, 255], -1);
+            }
+          }
+        }
         
         // Display result
         cv.imshow(canvas, src);
@@ -186,6 +200,36 @@ export default function Home() {
   const handleClassroomMode = () => {
     if (isDemoMode) {
       alert('Demo Mode: Classroom Mode\n\nIn the full version, this would enable:\n- Live instructor sessions\n- Real-time collaboration\n- WebSocket-based interactions\n\nThis feature requires the backend WebSocket server.');
+    }
+  };
+
+  const handlePrintImage = () => {
+    if (canvasRef.current) {
+      const dataUrl = canvasRef.current.toDataURL('image/png');
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head><title>Print Image</title></head>
+            <body style="margin:0;padding:20px;display:flex;justify-content:center;align-items:center;min-height:100vh;">
+              <img src="${dataUrl}" style="max-width:100%;max-height:100vh;" />
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      }
+    }
+  };
+
+  const handleSaveImage = () => {
+    if (canvasRef.current) {
+      const link = document.createElement('a');
+      link.download = `traceplay-${conversionMode || 'image'}.png`;
+      link.href = canvasRef.current.toDataURL('image/png');
+      link.click();
     }
   };
 
@@ -258,7 +302,7 @@ export default function Home() {
                 />
               ) : (
                 <img 
-                  src={selectedImage || '/generated_turtle.png'} 
+                  src={selectedImage || `${basePath}/generated_turtle.png`} 
                   alt="Sample tracing image - turtle" 
                   className="w-full h-auto rounded-lg border border-gray-200"
                 />
@@ -289,13 +333,58 @@ export default function Home() {
                 />
               </label>
               {selectedImage && (
-                <button 
-                  onClick={handleProcessImage}
-                  disabled={!opencvReady || isProcessing}
-                  className="rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 px-4 py-2 text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isProcessing ? 'Processing...' : 'Convert to Coloring Page'}
-                </button>
+                <>
+                  <div className="flex gap-2 items-center">
+                    <span className="text-sm text-gray-600">Convert to:</span>
+                    <button 
+                      onClick={() => setConversionMode('coloring')}
+                      disabled={!opencvReady || isProcessing}
+                      className={`rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 px-4 py-2 text-base disabled:opacity-50 disabled:cursor-not-allowed ${
+                        conversionMode === 'coloring' 
+                          ? 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500' 
+                          : 'border-2 border-green-600 text-green-600 hover:bg-green-50 focus:ring-green-500'
+                      }`}
+                    >
+                      Coloring Page
+                    </button>
+                    <button 
+                      onClick={() => setConversionMode('dots')}
+                      disabled={!opencvReady || isProcessing}
+                      className={`rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 px-4 py-2 text-base disabled:opacity-50 disabled:cursor-not-allowed ${
+                        conversionMode === 'dots' 
+                          ? 'bg-orange-600 text-white hover:bg-orange-700 focus:ring-orange-500' 
+                          : 'border-2 border-orange-600 text-orange-600 hover:bg-orange-50 focus:ring-orange-500'
+                      }`}
+                    >
+                      Connect Dots
+                    </button>
+                  </div>
+                  {conversionMode && (
+                    <button 
+                      onClick={handleProcessImage}
+                      disabled={!opencvReady || isProcessing}
+                      className="rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-purple-600 text-white hover:bg-purple-700 focus:ring-purple-500 px-4 py-2 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isProcessing ? 'Processing...' : 'Generate'}
+                    </button>
+                  )}
+                  {selectedImage && !isProcessing && (
+                    <>
+                      <button 
+                        onClick={handlePrintImage}
+                        className="rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 border-2 border-gray-600 text-gray-600 hover:bg-gray-50 focus:ring-gray-500 px-4 py-2 text-base"
+                      >
+                        Print
+                      </button>
+                      <button 
+                        onClick={handleSaveImage}
+                        className="rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 border-2 border-gray-600 text-gray-600 hover:bg-gray-50 focus:ring-gray-500 px-4 py-2 text-base"
+                      >
+                        Save
+                      </button>
+                    </>
+                  )}
+                </>
               )}
               {featureFlags.curriculumManagement && (
                 <button 
