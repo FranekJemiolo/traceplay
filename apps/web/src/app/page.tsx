@@ -324,15 +324,15 @@ export default function Home() {
                   OpenCV.js Status: {opencvReady ? '✓ Ready' : '⏳ Loading...'}
                 </p>
               </div>
-            <div className="mb-4">
-              <canvas 
-                ref={canvasRef}
-                className={`${processedImage && !isProcessing ? 'block' : 'hidden'} w-full h-auto rounded-lg border border-gray-200`}
-              />
+            <div className="mb-4 relative">
               <img 
                 src={selectedImage || `${basePath}/generated_turtle.png`} 
                 alt="Sample image for conversion" 
-                className={`${processedImage && !isProcessing ? 'hidden' : 'block'} w-full h-auto rounded-lg border border-gray-200`}
+                className={`${processedImage && !isProcessing ? 'opacity-10' : 'opacity-100'} w-full h-auto rounded-lg border border-gray-200 absolute top-0 left-0`}
+              />
+              <canvas 
+                ref={canvasRef}
+                className={`${processedImage && !isProcessing ? 'block' : 'hidden'} w-full h-auto rounded-lg border border-gray-200 relative z-10`}
               />
             </div>
             {isProcessing && (
