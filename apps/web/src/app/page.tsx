@@ -179,7 +179,9 @@ export default function Home() {
       const cv = (window as any).cv;
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      img.src = selectedImage;
+      // Prepend basePath for GitHub Pages
+      const imageUrl = selectedImage.startsWith('http') ? selectedImage : `${basePath}${selectedImage}`;
+      img.src = imageUrl;
       
       img.onerror = () => {
         console.error('Failed to load image for processing:', img.src);
