@@ -317,18 +317,15 @@ export default function Home() {
                 </p>
               </div>
             <div className="mb-4">
-              {processedImage && !isProcessing ? (
-                <canvas 
-                  ref={canvasRef}
-                  className="w-full h-auto rounded-lg border border-gray-200"
-                />
-              ) : (
-                <img 
-                  src={selectedImage || `${basePath}/generated_turtle.png`} 
-                  alt="Sample image for conversion" 
-                  className="w-full h-auto rounded-lg border border-gray-200"
-                />
-              )}
+              <canvas 
+                ref={canvasRef}
+                className={`${processedImage && !isProcessing ? 'block' : 'hidden'} w-full h-auto rounded-lg border border-gray-200`}
+              />
+              <img 
+                src={selectedImage || `${basePath}/generated_turtle.png`} 
+                alt="Sample image for conversion" 
+                className={`${processedImage && !isProcessing ? 'hidden' : 'block'} w-full h-auto rounded-lg border border-gray-200`}
+              />
             </div>
             {isProcessing && (
               <div className="mb-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
