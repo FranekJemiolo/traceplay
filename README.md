@@ -174,6 +174,62 @@ OPENAI_API_KEY=your_key_here
 
 TracePlay supports two deployment modes:
 
+### TODO: Production Mode Features
+
+The following features are temporarily removed from the frontend to focus on core image conversion functionality. See [DECISIONS.md](./DECISIONS.md) for detailed reasoning.
+
+**Future Production UI Components:**
+
+1. **Interactive Tracing Card**
+   - Phaser-based tracing game
+   - Real-time shape recognition
+   - Progress tracking (65% complete indicator)
+   - Requires: Backend game server
+
+2. **Adaptive Quizzes Card**
+   - AI-generated quizzes
+   - Adaptive difficulty
+   - Performance analytics (40% complete indicator)
+   - Requires: AI backend service
+
+3. **Curriculum View Button**
+   - Module-based organization
+   - Skill dependency graph
+   - Progress tracking
+   - Requires: Backend API
+
+4. **Classroom Mode Card**
+   - Live instructor sessions
+   - Real-time collaboration
+   - WebSocket-based interactions
+   - Requires: WebSocket server
+
+5. **Getting Started Guide**
+   - Basic shapes introduction
+   - Shape recognition basics
+
+6. **Advanced Techniques Guide**
+   - Complex patterns
+   - Artistic tracing
+
+**Current Simplified UI:**
+- Load Sample Image
+- Upload Image
+- Convert to Coloring Page
+- Convert to Connect Dots
+- Generate
+- Print
+- Save
+
+**Migration Path:**
+When re-introducing production features:
+1. Implement backend services (game server, AI service, WebSocket server, API)
+2. Add feature flags for gradual rollout
+3. Test each feature independently
+4. Update UI to include feature cards
+5. Integrate with existing image converter
+6. Full integration testing
+
 ### Demo Mode (Frontend-Only)
 The demo mode runs entirely in the browser without backend dependencies. This is ideal for:
 - GitHub Pages deployment
@@ -183,18 +239,20 @@ The demo mode runs entirely in the browser without backend dependencies. This is
 **Demo Mode Features:**
 - Browser-based image processing with OpenCV.js
 - Image upload for coloring page conversion
-- Interactive curriculum view with mock data
-- Clickable menu items with demo alerts
-- Sample lesson preview with contour detection
+- Convert images to connect-the-dots activities
+- Save and print processed images
 - No backend API calls
 - No database or Redis required
 - Runs on GitHub Pages: https://franekjemiolo.github.io/traceplay/
 
 **Demo Mode Capabilities:**
-- **Image Upload**: Upload any image and convert it to a coloring page using OpenCV.js contour detection
-- **Curriculum View**: Browse demo curriculum with 3 modules, 6 lessons, and 9 skills
-- **Sample Lessons**: Load sample lessons with pre-generated tracing images
-- **Feature Exploration**: Click on Interactive Tracing, Adaptive Quizzes, and Classroom Mode cards to see demo alerts explaining what each feature does in the full version
+- **Load Sample Image**: Load a sample turtle image for conversion
+- **Upload Image**: Upload any image for conversion
+- **Convert to Coloring Page**: Convert images to outline-based coloring pages using OpenCV.js contour detection
+- **Convert to Connect Dots**: Convert images to connect-the-dots activities
+- **Generate**: Process the image with selected conversion mode
+- **Save**: Download the processed image as PNG
+- **Print**: Open print dialog with the processed image
 
 **To run locally in demo mode:**
 ```bash
