@@ -8,7 +8,9 @@ const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || typeof window
 const basePath = process.env.GITHUB_PAGES === 'true' ? '/traceplay' : '';
 
 export default function Home() {
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(
+    isDemoMode ? `${basePath}/generated_turtle.png` : null
+  );
   const [isProcessing, setIsProcessing] = useState(false);
   const [opencvReady, setOpencvReady] = useState(false);
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(getFeatureFlags());
@@ -32,6 +34,8 @@ export default function Home() {
 
   const handleLoadLesson = async () => {
     if (isDemoMode) {
+      if (isProcessing) return;
+      
       setSelectedImage(`${basePath}/generated_turtle.png`);
       
       if (opencvReady && canvasRef.current) {
@@ -47,7 +51,17 @@ export default function Home() {
           img.crossOrigin = 'anonymous';
           img.src = `${basePath}/generated_turtle.png`;
           
+          img.onerror = () => {
+            console.error('Failed to load image:', img.src);
+            img.onload = null;
+            img.onerror = null;
+            setProcessingStage('');
+            setIsProcessing(false);
+          };
+
           img.onload = async () => {
+            img.onload = null;
+            img.onerror = null;
             setProcessingStage('Reading image with OpenCV...');
             await new Promise(resolve => setTimeout(resolve, 100));
             
@@ -387,7 +401,7 @@ export default function Home() {
                   className="hidden"
                 />
               </label>
-              {selectedImage && (
+              {(selectedImage || isDemoMode) && (
                 <>
                   <div className="flex gap-2 items-center">
                     <span className="text-sm text-gray-600">Convert to:</span>
@@ -452,31 +466,33 @@ export default function Home() {
             </div>
           </div>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="font-semibold mb-2">Getting Started</h3>
-            <p className="text-sm text-gray-600">
-              Learn the basics of tracing and shape recognition
-            </p>
-          </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="font-semibold mb-2">Advanced Techniques</h3>
-            <p className="text-sm text-gray-600">
-              Master complex patterns and artistic tracing
-            </p>
-          </div>
-          {featureFlags.classroomMode && (
-            <div 
-              className="bg-white rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={handleClassroomMode}
-            >
-              <h3 className="font-semibold mb-2">Classroom Mode</h3>
+        {!isDemoMode && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="font-semibold mb-2">Getting Started</h3>
               <p className="text-sm text-gray-600">
-                Join live sessions with instructors and peers
+                Learn the basics of tracing and shape recognition
               </p>
             </div>
-          )}
-        </div>
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h3 className="font-semibold mb-2">Advanced Techniques</h3>
+              <p className="text-sm text-gray-600">
+                Master complex patterns and artistic tracing
+              </p>
+            </div>
+            {featureFlags.classroomMode && (
+              <div 
+                className="bg-white rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={handleClassroomMode}
+              >
+                <h3 className="font-semibold mb-2">Classroom Mode</h3>
+                <p className="text-sm text-gray-600">
+                  Join live sessions with instructors and peers
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       
       {showCurriculum && <CurriculumView onClose={() => setShowCurriculum(false)} />}
