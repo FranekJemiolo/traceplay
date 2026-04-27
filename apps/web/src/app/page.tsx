@@ -158,7 +158,16 @@ export default function Home() {
   };
 
   const handleProcessImage = async () => {
-    if (!selectedImage || !opencvReady || !canvasRef.current || !conversionMode) return;
+    console.log('handleProcessImage called', { selectedImage, opencvReady, canvasRef: !!canvasRef.current, conversionMode });
+    if (!selectedImage || !opencvReady || !canvasRef.current || !conversionMode) {
+      console.error('Missing required state:', { 
+        hasSelectedImage: !!selectedImage, 
+        opencvReady, 
+        hasCanvas: !!canvasRef.current, 
+        conversionMode 
+      });
+      return;
+    }
     
     console.log('Processing image with URL:', selectedImage);
     setIsProcessing(true);
