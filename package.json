@@ -2,7 +2,7 @@
   "name": "traceplay",
   "version": "0.1.0",
   "private": true,
-  "description": "Turn photos into coloring pages and connect-the-dots puzzles. Upload an image and get printable activities for kids.",
+  "description": "Browser-based tool that converts photos into coloring pages and puzzles.",
   "workspaces": [
     "apps/*",
     "packages/*"
