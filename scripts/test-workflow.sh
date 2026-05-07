@@ -22,17 +22,29 @@ echo "Building all packages..."
 pnpm run build --filter=@traceplay/runtime --filter=@traceplay/vector --filter=@traceplay/annotation --filter=@traceplay/curriculum --filter=@traceplay/quiz --filter=@traceplay/ui --filter=@traceplay/embed-sdk
 echo "✓ All packages built successfully"
 
-# Build web app in demo mode
+# Build web app in demo mode (localhost)
 echo ""
-echo "Building web app in demo mode..."
+echo "Building web app in demo mode (localhost)..."
 NEXT_PUBLIC_DEMO_MODE=true pnpm run build --filter=@traceplay/web
-echo "✓ Web app built in demo mode"
+echo "✓ Web app built in demo mode (localhost)"
 
-# Build web app in full mode
+# Build web app in demo mode (GitHub Pages)
 echo ""
-echo "Building web app in full mode..."
+echo "Building web app in demo mode (GitHub Pages)..."
+NEXT_PUBLIC_DEMO_MODE=true GITHUB_PAGES=true pnpm run build --filter=@traceplay/web
+echo "✓ Web app built in demo mode (GitHub Pages)"
+
+# Build web app in full mode (localhost)
+echo ""
+echo "Building web app in full mode (localhost)..."
 NEXT_PUBLIC_DEMO_MODE=false pnpm run build --filter=@traceplay/web
-echo "✓ Web app built in full mode"
+echo "✓ Web app built in full mode (localhost)"
+
+# Build web app in full mode (GitHub Pages)
+echo ""
+echo "Building web app in full mode (GitHub Pages)..."
+NEXT_PUBLIC_DEMO_MODE=false GITHUB_PAGES=true pnpm run build --filter=@traceplay/web
+echo "✓ Web app built in full mode (GitHub Pages)"
 
 # Note: Backend build skipped (requires Prisma Client generation with database)
 echo ""
@@ -44,11 +56,17 @@ echo "Building worker..."
 pnpm run build --filter=@traceplay/worker
 echo "✓ Worker built successfully"
 
-# Build game
+# Build game (localhost)
 echo ""
-echo "Building game..."
+echo "Building game (localhost)..."
 pnpm run build --filter=@traceplay/game
-echo "✓ Game built successfully"
+echo "✓ Game built successfully (localhost)"
+
+# Build game (GitHub Pages)
+echo ""
+echo "Building game (GitHub Pages)..."
+GITHUB_PAGES=true pnpm run build --filter=@traceplay/game
+echo "✓ Game built successfully (GitHub Pages)"
 
 # Verify build outputs
 echo ""
