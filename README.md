@@ -25,6 +25,120 @@ traceplay/
 └── infrastructure/   # Docker and deployment configs
 ```
 
+### Architecture Diagram
+
+```mermaid
+graph TD
+    subgraph "Monorepo Structure"
+        A[pnpm workspaces] --> B[Apps]
+        A --> C[Packages]
+        A --> D[Infrastructure]
+    end
+    
+    subgraph "Applications"
+        B --> E[Web App - Next.js]
+        B --> F[Game Engine - Phaser 3]
+        B --> G[Backend API - NestJS]
+        B --> H[Worker - BullMQ]
+        
+        E --> I[React Frontend]
+        E --> J[Tailwind CSS]
+        E --> K[Zustand State]
+        F --> L[WebGL Tracing]
+        F --> M[Interactive Canvas]
+        G --> N[REST API]
+        G --> O[WebSocket Server]
+        G --> P[PostgreSQL DB]
+        H --> Q[Job Processing]
+        H --> R[Background Tasks]
+    end
+    
+    subgraph "Core Packages"
+        C --> S[Runtime - Event Kernel]
+        C --> T[Vector - OpenCV Pipeline]
+        C --> U[Annotation - Shape Semantics]
+        C --> V[Curriculum - Skill Graph]
+        C --> W[Quiz - AI Generator]
+        C --> X[UI - Design System]
+        C --> Y[Embed SDK]
+        
+        S --> Z[Event Bus]
+        S --> AA[State Management]
+        T --> BB[Image Processing]
+        T --> CC[Contour Extraction]
+        U --> DD[Shape Recognition]
+        U --> EE[Labeling System]
+        V --> FF[Skill Progression]
+        V --> GG[Module Structure]
+        W --> HH[AI Distractors]
+        W --> II[Quiz Generation]
+        X --> JJ[React Components]
+        X --> KK[Design Tokens]
+        Y --> LL[Iframe Embed]
+        Y --> MM[Third-party API]
+    end
+    
+    subgraph "Data Flow"
+        I --> S
+        L --> T
+        T --> U
+        U --> V
+        V --> W
+        W --> N
+        N --> P
+        P --> O
+        O --> I
+    end
+    
+    subgraph "Image Processing Pipeline"
+        NN[User Upload] --> BB
+        BB --> OO[Preprocessing]
+        OO --> PP[Edge Detection]
+        PP --> QQ[Contour Analysis]
+        QQ --> DD
+        DD --> RR[Shape Classification]
+        RR --> SS[Annotation Store]
+    end
+    
+    subgraph "Learning System"
+        TT[Curriculum Engine] --> V
+        V --> UU[Skill Assessment]
+        UU --> VV[Adaptive Difficulty]
+        VV --> W
+        W --> WW[Quiz Generation]
+        WW --> XX[Student Progress]
+        XX --> YY[Performance Analytics]
+    end
+    
+    subgraph "Real-time Features"
+        O --> ZZ[Classroom Sessions]
+        O --> AAA[Live Collaboration]
+        O --> BBB[Teacher Dashboard]
+        ZZ --> CCC[Student Screens]
+        AAA --> DDD[Shared Canvas]
+        BBB --> EEE[Progress Monitoring]
+    end
+    
+    subgraph "Infrastructure"
+        D --> FFF[Docker Compose]
+        D --> GGG[Kubernetes]
+        D --> HHH[CI/CD Pipeline]
+        D --> III[Monitoring]
+        FFF --> JJJ[Development Stack]
+        GGG --> KKK[Production Cluster]
+        HHH --> LLL[Automated Testing]
+        III --> MMM[Performance Metrics]
+    end
+    
+    subgraph "External Integrations"
+        NNN[AI Services] --> W
+        OOO[Payment Gateway] --> G
+        PPP[Email Service] --> G
+        QQQ[Cloud Storage] --> NN
+        RRR[Analytics Platform] --> III
+    end
+```
+
 ## Tech Stack
 
 ### Frontend
