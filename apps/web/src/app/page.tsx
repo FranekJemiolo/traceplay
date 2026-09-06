@@ -26,6 +26,7 @@ import { DemoLesson, getDemoLessonById, demoStorybooks } from '../lib/demoData';
 
 import { TrainingHashState, encodeHashState, decodeHashState } from '../lib/hashState';
 import { getPredefinedShapesForImage } from '../lib/predefinedShapes';
+import { reducePointsToLimit } from '../lib/geometryUtils';
 
 export default function Home() {
   const [basePath, setBasePath] = useState('');
@@ -309,36 +310,46 @@ export default function Home() {
         }
       } else if (mode === 'dots' || mode === 'tracing') {
         // Connect-the-dots or tracing worksheet:
-        // Enforce generous spacing (min 38px) and cap dots at 16 to avoid clutter and overlap
+        // Enforce generous spacing (min 38px) and cap dots at 10-12 to make it kid-friendly and easy
         const minSpacing = Math.max(38, spacingVal);
-        const maxAllowedDots = 16;
-        const sampledPoints: Array<{ x: number; y: number }> = [];
+        const maxAllowedDots = 12;
 
-        // Sample along edges with strict Euclidean distance check against all chosen points
-        for (let i = 0; i < edges.length; i += 2) {
-          const pt = edges[i];
-          const tooClose = sampledPoints.some(
-            (s) => Math.hypot(s.x - pt.x, s.y - pt.y) < minSpacing
-          );
-          if (!tooClose) {
-            sampledPoints.push(pt);
-            if (sampledPoints.length >= maxAllowedDots) break;
+        // Chain edge pixels sequentially into a continuous perimeter loop
+        const orderedChain: Array<{ x: number; y: number }> = [];
+        const visitedEdge = new Uint8Array(edges.length);
+        if (edges.length > 0) {
+          visitedEdge[0] = 1;
+          orderedChain.push(edges[0]);
+
+          for (let step = 1; step < Math.min(800, edges.length); step++) {
+            const curr = orderedChain[orderedChain.length - 1];
+            let nearestIdx = -1;
+            let nearestDist = 30; // Search within local radius
+
+            for (let j = 1; j < edges.length; j++) {
+              if (visitedEdge[j]) continue;
+              const d = Math.hypot(edges[j].x - curr.x, edges[j].y - curr.y);
+              if (d < nearestDist) {
+                nearestDist = d;
+                nearestIdx = j;
+              }
+            }
+
+            if (nearestIdx !== -1) {
+              visitedEdge[nearestIdx] = 1;
+              orderedChain.push(edges[nearestIdx]);
+            } else {
+              break;
+            }
           }
         }
 
-        // Sort points clockwise / radially from centroid for sequential connect-the-dots
-        if (sampledPoints.length > 3) {
-          let cx = 0, cy = 0;
-          sampledPoints.forEach((p) => { cx += p.x; cy += p.y; });
-          cx /= sampledPoints.length;
-          cy /= sampledPoints.length;
-
-          sampledPoints.sort((a, b) => {
-            const angleA = Math.atan2(a.y - cy, a.x - cx);
-            const angleB = Math.atan2(b.y - cy, b.x - cx);
-            return angleA - angleB;
-          });
-        }
+        // Subsample along perimeter and untangle to strictly guarantee zero crossing lines
+        const sampledPoints = reducePointsToLimit(
+          orderedChain.length >= 4 ? orderedChain : edges,
+          maxAllowedDots,
+          minSpacing
+        );
 
         if (mode === 'tracing') {
           // Draw subtle dashed guidelines
@@ -370,7 +381,7 @@ export default function Home() {
           ctx.fillText((idx + 1).toString(), pt.x, pt.y - 8);
         });
 
-        if (sampledPoints.length >= 4) {
+        if (sampledPoints.length >= 3) {
           generatedShapes.push({
             label: `${activeLessonTitle || 'Activity'} Contour`,
             points: sampledPoints,
@@ -427,13 +438,16 @@ export default function Home() {
               ctx.fillRect(0, 0, w, h);
 
               predefined.forEach((shape) => {
+                // Ensure dot count is kid-friendly (max 10 dots) and lines never cross
+                const reducedPts = reducePointsToLimit(shape.points, 10, 36);
+
                 if (targetMode === 'tracing') {
                   ctx.save();
                   ctx.setLineDash([6, 6]);
                   ctx.strokeStyle = '#94a3b8';
                   ctx.lineWidth = 2.5;
                   ctx.beginPath();
-                  shape.points.forEach((p, idx) => {
+                  reducedPts.forEach((p, idx) => {
                     const sx = (p.x / 600) * w;
                     const sy = (p.y / 480) * h;
                     if (idx === 0) ctx.moveTo(sx, sy);
@@ -444,7 +458,7 @@ export default function Home() {
                   ctx.restore();
                 }
 
-                shape.points.forEach((p, idx) => {
+                reducedPts.forEach((p, idx) => {
                   const sx = (p.x / 600) * w;
                   const sy = (p.y / 480) * h;
                   ctx.beginPath();
@@ -489,26 +503,34 @@ export default function Home() {
                     cv.drawContours(white, contours, -1, new cv.Scalar(15, 23, 42, 255), lineThickness);
                   } else {
                     const minSpacing = Math.max(38, dotSpacing);
-                    const maxAllowedDots = 16;
+                    const maxAllowedDots = 12;
                     for (let i = 0; i < contours.size(); i++) {
                       const cnt = contours.get(i);
                       const peri = cv.arcLength(cnt, true);
                       if (peri < 80) continue; // Skip tiny noise contours
 
-                      const pts: { x: number; y: number }[] = [];
+                      const contourPts: { x: number; y: number }[] = [];
                       for (let j = 0; j < cnt.rows; j++) {
                         const pt = cnt.data32S.subarray(j * 2, j * 2 + 2);
-                        const candidate = { x: pt[0], y: pt[1] };
-                        const tooClose = pts.some(
-                          (p) => Math.hypot(p.x - candidate.x, p.y - candidate.y) < minSpacing
-                        );
-                        if (!tooClose) {
-                          pts.push(candidate);
-                          cv.circle(white, new cv.Point(candidate.x, candidate.y), 4.5, new cv.Scalar(30, 41, 59, 255), -1);
-                          if (pts.length >= maxAllowedDots) break;
-                        }
+                        contourPts.push({ x: pt[0], y: pt[1] });
                       }
-                      if (pts.length >= 4) {
+
+                      // Subsample along whole perimeter, enforce spacing & eliminate crossing lines
+                      const pts = reducePointsToLimit(contourPts, maxAllowedDots, minSpacing);
+
+                      if (pts.length >= 3) {
+                        if (targetMode === 'tracing') {
+                          for (let k = 0; k < pts.length; k++) {
+                            const p1 = pts[k];
+                            const p2 = pts[(k + 1) % pts.length];
+                            cv.line(white, new cv.Point(p1.x, p1.y), new cv.Point(p2.x, p2.y), new cv.Scalar(148, 163, 184, 255), 2);
+                          }
+                        }
+
+                        pts.forEach((candidate) => {
+                          cv.circle(white, new cv.Point(candidate.x, candidate.y), 4.5, new cv.Scalar(30, 41, 59, 255), -1);
+                        });
+
                         extracted.push({ label: `Contour #${i + 1}`, points: pts });
                         if (extracted.length >= 2) break; // Avoid overcrowding with too many contours
                       }

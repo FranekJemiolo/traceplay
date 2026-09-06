@@ -17,6 +17,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { getPredefinedShapesForImage } from '../lib/predefinedShapes';
+import { reducePointsToLimit } from '../lib/geometryUtils';
 
 export interface Point {
   x: number;
@@ -396,10 +397,10 @@ export default function TracingGameModal({
     const margin = 50;
 
     // Minimum distance threshold to ensure dots NEVER overlap:
-    // Easy mode: larger spacing (48px) and fewer dots (max 12) for clarity
-    // Hard mode: exact spacing (32px) and up to 24 dots
-    const minDotDist = difficulty === 'easy' ? 48 : 32;
-    const maxDots = difficulty === 'easy' ? 12 : 24;
+    // Easy mode: larger spacing (46px) and fewer dots (max 10) for kid-friendly tracing
+    // Hard mode: exact spacing (32px) and up to 16 dots
+    const minDotDist = difficulty === 'easy' ? 46 : 32;
+    const maxDots = difficulty === 'easy' ? 10 : 16;
 
     return activeShapePool.map((shape) => {
       if (shape.points.length === 0) return shape;
@@ -431,42 +432,9 @@ export default function TracingGameModal({
         y: Math.round(p.y * scale + offsetY),
       }));
 
-      // Non-overlapping decimation filter:
-      // Guarantees no two dots are closer than minDotDist and keeps total dots clean & legible
-      const filteredPoints: Point[] = [];
-      for (let i = 0; i < fittedPoints.length; i++) {
-        const pt = fittedPoints[i];
-        if (filteredPoints.length === 0) {
-          filteredPoints.push(pt);
-          continue;
-        }
-
-        const prev = filteredPoints[filteredPoints.length - 1];
-        const distPrev = Math.hypot(pt.x - prev.x, pt.y - prev.y);
-
-        // Distance to all already-accepted points to prevent cross-path overlap
-        const tooClose = filteredPoints.some(
-          (p) => Math.hypot(p.x - pt.x, p.y - pt.y) < minDotDist
-        );
-
-        if (distPrev >= minDotDist && !tooClose) {
-          filteredPoints.push(pt);
-          if (filteredPoints.length >= maxDots) break;
-        }
-      }
-
-      // Check loop closure: ensure last point isn't right on top of first point
-      if (filteredPoints.length > 3) {
-        const distStart = Math.hypot(
-          filteredPoints[filteredPoints.length - 1].x - filteredPoints[0].x,
-          filteredPoints[filteredPoints.length - 1].y - filteredPoints[0].y
-        );
-        if (distStart < minDotDist) {
-          filteredPoints.pop();
-        }
-      }
-
-      const finalPoints = filteredPoints.length >= 3 ? filteredPoints : fittedPoints;
+      // Arc-length perimeter reduction + non-overlapping spacing + 2-opt untangling
+      // Guarantees zero crossing lines and a child-friendly dot count
+      const finalPoints = reducePointsToLimit(fittedPoints, maxDots, minDotDist);
 
       return {
         label: shape.label,
@@ -747,54 +715,44 @@ export default function TracingGameModal({
     if (!currentShape || currentShape.points.length === 0) return;
 
     // Difficulty settings: hit radius and ordering requirements
-    const hitRadius = difficulty === 'hard' ? 22 : 42;
+    const hitRadius = difficulty === 'hard' ? 24 : 46;
+    const nextExpectedIdx = visitedOrder.length;
+    if (nextExpectedIdx >= currentShape.points.length) return;
 
-    if (difficulty === 'hard') {
-      // STRICT SEQUENTIAL ORDER (1 -> 2 -> 3 -> ...)
-      const nextExpectedIdx = visitedOrder.length;
-      if (nextExpectedIdx >= currentShape.points.length) return;
+    const targetDot = currentShape.points[nextExpectedIdx];
+    const dist = Math.hypot(pt.x - targetDot.x, pt.y - targetDot.y);
 
-      const targetDot = currentShape.points[nextExpectedIdx];
-      const dist = Math.hypot(pt.x - targetDot.x, pt.y - targetDot.y);
+    if (dist <= hitRadius) {
+      // Connected the expected sequential dot!
+      if (visitedOrder.length > 0) {
+        const lastIdx = visitedOrder[visitedOrder.length - 1];
+        const lastDot = currentShape.points[lastIdx];
+        setCompletedSegments((prev) => [...prev, { from: lastDot, to: targetDot }]);
+      }
 
-      if (dist <= hitRadius) {
-        // Connected the expected dot!
-        if (visitedOrder.length > 0) {
-          const lastIdx = visitedOrder[visitedOrder.length - 1];
-          const lastDot = currentShape.points[lastIdx];
-          setCompletedSegments((prev) => [...prev, { from: lastDot, to: targetDot }]);
-        }
-
-        const newOrder = [...visitedOrder, nextExpectedIdx];
-        setVisitedOrder(newOrder);
-        setVisitedDots((prev) => new Set([...prev, nextExpectedIdx]));
-        setCurrentStroke([targetDot]); // anchor stroke to connected dot
-        sfx.playDotChime(nextExpectedIdx, currentShape.points.length);
+      const newOrder = [...visitedOrder, nextExpectedIdx];
+      setVisitedOrder(newOrder);
+      setVisitedDots((prev) => new Set([...prev, nextExpectedIdx]));
+      setCurrentStroke([targetDot]); // anchor stroke to connected dot
+      sfx.playDotChime(nextExpectedIdx, currentShape.points.length);
+      setFeedbackMessage(
+        newOrder.length === currentShape.points.length
+          ? '🎉 Awesome! All dots connected without crossing lines!'
+          : `✓ Dot ${nextExpectedIdx + 1} connected! Trace to Dot ${nextExpectedIdx + 2}`
+      );
+    } else if (difficulty === 'easy') {
+      // In easy mode, if user touches a different unvisited dot out-of-order, guide them
+      const touchingOther = currentShape.points.findIndex(
+        (d, idx) =>
+          idx !== nextExpectedIdx &&
+          !visitedDots.has(idx) &&
+          Math.hypot(pt.x - d.x, pt.y - d.y) <= hitRadius
+      );
+      if (touchingOther !== -1) {
         setFeedbackMessage(
-          newOrder.length === currentShape.points.length
-            ? '🎉 Awesome! All dots connected in perfect order!'
-            : `✓ Dot ${nextExpectedIdx + 1} connected! Trace to Dot ${nextExpectedIdx + 2}`
+          `👉 Trace to glowing Dot ${nextExpectedIdx + 1} next so lines don't cross!`
         );
       }
-    } else {
-      // EASY MODE: Lenient ordering and generous hit radius
-      currentShape.points.forEach((dot, idx) => {
-        const dist = Math.hypot(pt.x - dot.x, pt.y - dot.y);
-        if (dist <= hitRadius && !visitedDots.has(idx)) {
-          if (visitedOrder.length > 0) {
-            const lastIdx = visitedOrder[visitedOrder.length - 1];
-            const lastDot = currentShape.points[lastIdx];
-            setCompletedSegments((prev) => [...prev, { from: lastDot, to: dot }]);
-          }
-
-          const newOrder = [...visitedOrder, idx];
-          setVisitedOrder(newOrder);
-          setVisitedDots((prev) => new Set([...prev, idx]));
-          setCurrentStroke([dot]);
-          sfx.playDotChime(idx, currentShape.points.length);
-          setFeedbackMessage(`✓ Connected Dot ${idx + 1}! Keep drawing!`);
-        }
-      });
     }
   };
 
@@ -802,19 +760,20 @@ export default function TracingGameModal({
     e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
   ) => {
     e.preventDefault();
-    if (!currentShape) return;
+    if (!currentShape || currentShape.points.length === 0) return;
     const pt = getCanvasCoords(e);
     setIsDrawing(true);
     setCurrentStroke([pt]);
 
-    // In Hard mode, drawing must initiate at or near Dot 1 if no dots visited yet
-    if (difficulty === 'hard' && visitedOrder.length === 0) {
+    // Drawing must initiate at or near Dot 1 when starting
+    if (visitedOrder.length === 0) {
       const dot0 = currentShape.points[0];
+      const startRadius = difficulty === 'hard' ? 30 : 48;
       const dist = Math.hypot(pt.x - dot0.x, pt.y - dot0.y);
-      if (dist <= 30) {
+      if (dist <= startRadius) {
         checkDotProximity(pt);
       } else {
-        setFeedbackMessage('👉 Start by touching Dot 1!');
+        setFeedbackMessage('👉 Start by touching glowing Dot 1!');
       }
     } else {
       checkDotProximity(pt);
@@ -834,7 +793,7 @@ export default function TracingGameModal({
 
     // OFF-TRACK DEVIATION CHECK:
     // If you stray too far from the expected path, redo from beginning!
-    const maxTolerance = difficulty === 'hard' ? 38 : 85;
+    const maxTolerance = difficulty === 'hard' ? 38 : 110;
 
     if (difficulty === 'hard') {
       const lastIdx = visitedOrder.length > 0 ? visitedOrder[visitedOrder.length - 1] : null;
@@ -851,20 +810,17 @@ export default function TracingGameModal({
         }
       }
     } else {
-      // In Easy mode, if drawing wanders excessively far from all active points (>85px)
-      if (visitedOrder.length > 0 && visitedOrder.length < currentShape.points.length) {
-        const lastIdx = visitedOrder[visitedOrder.length - 1];
+      // In Easy mode, gentle guided tolerance (110px) to prevent stray lines that cross previous segments
+      const lastIdx = visitedOrder.length > 0 ? visitedOrder[visitedOrder.length - 1] : null;
+      const nextIdx = visitedOrder.length < currentShape.points.length ? visitedOrder.length : null;
+
+      if (lastIdx !== null && nextIdx !== null) {
         const segA = currentShape.points[lastIdx];
-        // Nearest unvisited dot
-        let minDist = Infinity;
-        currentShape.points.forEach((dot, idx) => {
-          if (!visitedDots.has(idx)) {
-            const d = pointToSegmentDistance(pt, segA, dot);
-            if (d < minDist) minDist = d;
-          }
-        });
-        if (minDist > maxTolerance) {
-          handleResetToStart('⚠️ Wandered off path! Let’s restart from the beginning.');
+        const segB = currentShape.points[nextIdx];
+        const devDist = pointToSegmentDistance(pt, segA, segB);
+
+        if (devDist > maxTolerance) {
+          handleResetToStart('⚠️ Wandered off the line! Trace gently between dots.');
           return;
         }
       }
