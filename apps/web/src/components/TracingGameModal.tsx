@@ -302,6 +302,116 @@ function pointToSegmentDistance(p: Point, a: Point, b: Point): number {
   return Math.hypot(p.x - projX, p.y - projY);
 }
 
+// Renders real geometric shape backgrounds for the training session
+function drawTrainingShapeBackground(ctx: CanvasRenderingContext2D, shape: TracingShape) {
+  if (!shape.points || shape.points.length < 3) return;
+
+  ctx.save();
+
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity;
+  for (const p of shape.points) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const w = maxX - minX;
+  const h = maxY - minY;
+  const label = (shape.label || '').toLowerCase();
+
+  ctx.beginPath();
+
+  if (label.includes('circle')) {
+    const radius = Math.min(w, h) / 2;
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  } else if (label.includes('triangle')) {
+    ctx.moveTo(cx, minY);
+    ctx.lineTo(maxX, maxY);
+    ctx.lineTo(minX, maxY);
+    ctx.closePath();
+  } else if (label.includes('square')) {
+    const size = Math.min(w, h);
+    const left = cx - size / 2;
+    const top = cy - size / 2;
+    if (typeof (ctx as any).roundRect === 'function') {
+      (ctx as any).roundRect(left, top, size, size, 14);
+    } else {
+      ctx.rect(left, top, size, size);
+    }
+  } else if (label.includes('diamond')) {
+    ctx.moveTo(cx, minY);
+    ctx.lineTo(maxX, cy);
+    ctx.lineTo(cx, maxY);
+    ctx.lineTo(minX, cy);
+    ctx.closePath();
+  } else {
+    // Star, Hexagon, Heart, Cat Face, or any other polygon
+    shape.points.forEach((pt, i) => {
+      if (i === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.closePath();
+  }
+
+  // Soft glowing theme colors for distinct learning levels
+  let gradColor1 = 'rgba(56, 189, 248, 0.18)';
+  let gradColor2 = 'rgba(14, 165, 233, 0.05)';
+  let strokeColor = 'rgba(56, 189, 248, 0.38)';
+
+  if (label.includes('circle')) {
+    gradColor1 = 'rgba(56, 189, 248, 0.18)';
+    gradColor2 = 'rgba(14, 165, 233, 0.05)';
+    strokeColor = 'rgba(56, 189, 248, 0.38)';
+  } else if (label.includes('triangle')) {
+    gradColor1 = 'rgba(168, 85, 247, 0.18)';
+    gradColor2 = 'rgba(126, 34, 206, 0.05)';
+    strokeColor = 'rgba(168, 85, 247, 0.38)';
+  } else if (label.includes('square')) {
+    gradColor1 = 'rgba(34, 197, 94, 0.16)';
+    gradColor2 = 'rgba(16, 185, 129, 0.05)';
+    strokeColor = 'rgba(34, 197, 94, 0.38)';
+  } else if (label.includes('diamond')) {
+    gradColor1 = 'rgba(236, 72, 153, 0.16)';
+    gradColor2 = 'rgba(219, 39, 119, 0.05)';
+    strokeColor = 'rgba(236, 72, 153, 0.38)';
+  } else if (label.includes('star')) {
+    gradColor1 = 'rgba(245, 158, 11, 0.20)';
+    gradColor2 = 'rgba(217, 119, 6, 0.06)';
+    strokeColor = 'rgba(245, 158, 11, 0.40)';
+  } else if (label.includes('hexagon')) {
+    gradColor1 = 'rgba(20, 184, 166, 0.18)';
+    gradColor2 = 'rgba(13, 148, 136, 0.05)';
+    strokeColor = 'rgba(20, 184, 166, 0.38)';
+  } else if (label.includes('heart')) {
+    gradColor1 = 'rgba(244, 63, 94, 0.20)';
+    gradColor2 = 'rgba(225, 29, 72, 0.06)';
+    strokeColor = 'rgba(244, 63, 94, 0.40)';
+  } else if (label.includes('cat')) {
+    gradColor1 = 'rgba(139, 92, 246, 0.18)';
+    gradColor2 = 'rgba(124, 58, 237, 0.05)';
+    strokeColor = 'rgba(139, 92, 246, 0.38)';
+  }
+
+  const grad = ctx.createLinearGradient(minX, minY, maxX, maxY);
+  grad.addColorStop(0, gradColor1);
+  grad.addColorStop(1, gradColor2);
+
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 export default function TracingGameModal({
   isOpen,
   onClose,
@@ -475,6 +585,7 @@ export default function TracingGameModal({
     normalizedShapes,
     bgImageElement,
     difficulty,
+    mode,
   ]);
 
   const drawCanvas = () => {
@@ -502,8 +613,14 @@ export default function TracingGameModal({
       }
     }
 
-    // Draw the actual selected image in the background with tasteful opacity (always preserved!)
-    if (bgImageElement && bgImageElement.complete && bgImageElement.naturalWidth > 0) {
+    // Background rendering:
+    // For training sessions, render real geometric shapes as the background (never the chosen studio image).
+    // Only when actually tracing over the selected image (mode !== 'train') do we show the chosen image!
+    if (mode === 'train') {
+      if (currentShape && currentShape.points.length >= 3) {
+        drawTrainingShapeBackground(ctx, currentShape);
+      }
+    } else if (bgImageElement && bgImageElement.complete && bgImageElement.naturalWidth > 0) {
       ctx.save();
       ctx.globalAlpha = 0.28;
       const imgW = bgImageElement.naturalWidth;
