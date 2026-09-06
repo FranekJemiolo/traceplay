@@ -50,6 +50,8 @@ export default function Home() {
   const printCanvasRef = useRef<HTMLCanvasElement>(null);
   const isInitialMount = useRef(true);
 
+  const [isGithubPagesPreview, setIsGithubPagesPreview] = useState(true);
+
   // Helper to format asset paths for base path
   const getAssetPath = useCallback((path: string, currentBasePath = basePath) => {
     if (!path) return '';
@@ -81,6 +83,14 @@ export default function Home() {
       detectedBasePath = '/traceplay';
     }
     setBasePath(detectedBasePath);
+
+    const isPreview =
+      process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ||
+      (typeof window !== 'undefined' && (
+        window.location.hostname.includes('github.io') ||
+        window.location.pathname.startsWith('/traceplay')
+      ));
+    setIsGithubPagesPreview(isPreview);
 
     // Read URL search params
     const searchParams = new URLSearchParams(window.location.search);
@@ -140,7 +150,7 @@ export default function Home() {
     // Initialize modals
     if (urlGame === '1' || urlGame === 'true') setIsGameOpen(true);
     if (urlCurriculum === '1' || urlCurriculum === 'true') setIsCurriculumOpen(true);
-    if (urlClassroom === '1' || urlClassroom === 'true') setIsClassroomOpen(true);
+    if (!isPreview && (urlClassroom === '1' || urlClassroom === 'true')) setIsClassroomOpen(true);
 
     // Check OpenCV readiness
     const checkOpenCV = setInterval(() => {
@@ -538,15 +548,17 @@ export default function Home() {
             >
               <BookOpen className="w-4 h-4 text-violet-500" /> Curriculum
             </button>
-            <button
-              onClick={() => {
-                setIsClassroomOpen(true);
-                updateUrlParams({ classroom: '1' });
-              }}
-              className="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
-            >
-              <Users className="w-4 h-4 text-emerald-500" /> Live Classroom
-            </button>
+            {!isGithubPagesPreview && (
+              <button
+                onClick={() => {
+                  setIsClassroomOpen(true);
+                  updateUrlParams({ classroom: '1' });
+                }}
+                className="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
+              >
+                <Users className="w-4 h-4 text-emerald-500" /> Live Classroom
+              </button>
+            )}
           </nav>
 
           <div className="flex items-center gap-3">
@@ -943,13 +955,15 @@ export default function Home() {
         shapes={extractedShapes.length > 0 ? extractedShapes : undefined}
       />
 
-      <ClassroomModal
-        isOpen={isClassroomOpen}
-        onClose={() => {
-          setIsClassroomOpen(false);
-          updateUrlParams({ classroom: null });
-        }}
-      />
+      {!isGithubPagesPreview && (
+        <ClassroomModal
+          isOpen={isClassroomOpen}
+          onClose={() => {
+            setIsClassroomOpen(false);
+            updateUrlParams({ classroom: null });
+          }}
+        />
+      )}
     </div>
   );
 }

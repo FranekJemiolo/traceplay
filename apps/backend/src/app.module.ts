@@ -12,7 +12,7 @@ import { RuntimeModule } from './runtime/runtime.module';
 import { UploadModule } from './upload/upload.module';
 import { ProcessingModule } from './processing/processing.module';
 import { ProgressModule } from './progress/progress.module';
-import { ClassroomGateway } from './classroom/classroom.gateway';
+import { ClassroomModule } from './classroom/classroom.module';
 
 @Module({
   imports: [
@@ -31,7 +31,7 @@ import { ClassroomGateway } from './classroom/classroom.gateway';
     UploadModule,
     ProcessingModule,
     ProgressModule,
+    ClassroomModule,
   ],
-  providers: [ClassroomGateway],
 })
 export class AppModule {}

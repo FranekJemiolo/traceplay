@@ -8,7 +8,7 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { PrismaService } from '../prisma/prisma.service';
+import { ClassroomService } from './classroom.service';
 
 interface SessionState {
   currentLesson?: string;
@@ -16,7 +16,7 @@ interface SessionState {
     showSolution: boolean;
     allowSkipping: boolean;
   };
-  students: Record<string, any>;
+  students: Record<string, { role: string; name?: string; progress: number; active: boolean }>;
 }
 
 @WebSocketGateway({
@@ -30,48 +30,39 @@ export class ClassroomGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   private sessionStates = new Map<string, SessionState>();
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private classroomService: ClassroomService) {}
 
   handleConnection(client: Socket) {
-    console.log(`Client connected: ${client.id}`);
+    console.log(`Classroom client connected: ${client.id}`);
   }
 
   handleDisconnect(client: Socket) {
-    console.log(`Client disconnected: ${client.id}`);
+    console.log(`Classroom client disconnected: ${client.id}`);
   }
 
   @SubscribeMessage('join-classroom')
   async handleJoinClassroom(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { sessionId: string; userId: string; role: string },
+    @MessageBody() payload: { sessionId: string; userId: string; role?: string },
   ) {
     try {
-      const session = await this.prisma.session.findUnique({
-        where: { code: payload.sessionId },
-        include: { attendees: true },
-      });
+      const code = payload.sessionId.toUpperCase();
 
-      if (!session || !session.active) {
-        client.emit('error', { message: 'Session not found or inactive' });
-        return;
+      // Ensure attendee is registered in PostgreSQL database
+      let attendeeUser: any = null;
+      if (payload.role !== 'TEACHER') {
+        const attendee = await this.classroomService.joinSession(code, payload.userId);
+        attendeeUser = attendee?.user;
       }
 
-      client.join(payload.sessionId);
+      // Fetch the full real session from database
+      const dbSession = await this.classroomService.getSession(code);
 
-      // Add attendee if not already present
-      const existingAttendee = session.attendees.find((a) => a.userId === payload.userId);
-      if (!existingAttendee) {
-        await this.prisma.sessionAttendee.create({
-          data: {
-            sessionId: session.id,
-            userId: payload.userId,
-          },
-        });
-      }
+      client.join(code);
 
       // Initialize session state if needed
-      if (!this.sessionStates.has(payload.sessionId)) {
-        this.sessionStates.set(payload.sessionId, {
+      if (!this.sessionStates.has(code)) {
+        this.sessionStates.set(code, {
           teacherControls: {
             showSolution: false,
             allowSkipping: false,
@@ -80,17 +71,64 @@ export class ClassroomGateway implements OnGatewayConnection, OnGatewayDisconnec
         });
       }
 
-      const state = this.sessionStates.get(payload.sessionId)!;
+      const state = this.sessionStates.get(code)!;
+
+      // Populate real students from DB
+      dbSession.attendees.forEach((att) => {
+        state.students[att.userId] = {
+          role: 'STUDENT',
+          name: att.name,
+          progress: att.progress,
+          active: att.active,
+        };
+      });
+
       if (payload.role === 'TEACHER') {
-        state.students[payload.userId] = { role: 'TEACHER' };
-      } else {
-        state.students[payload.userId] = { role: 'STUDENT', progress: 0 };
+        state.students[payload.userId] = {
+          role: 'TEACHER',
+          name: dbSession.teacher.name || 'Teacher',
+          progress: 100,
+          active: true,
+        };
       }
 
-      this.server.to(payload.sessionId).emit('student-joined', { userId: payload.userId, role: payload.role });
-      client.emit('session-state', state);
-    } catch (error) {
-      client.emit('error', { message: 'Failed to join classroom' });
+      this.server.to(code).emit('student-joined', {
+        userId: payload.userId,
+        name: attendeeUser?.name || 'Student',
+        role: payload.role || 'STUDENT',
+        attendees: dbSession.attendees,
+      });
+
+      client.emit('session-state', {
+        ...state,
+        dbSession,
+      });
+    } catch (error: any) {
+      client.emit('error', { message: error?.message || 'Failed to join classroom' });
+    }
+  }
+
+  @SubscribeMessage('update-progress')
+  async handleUpdateProgress(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { sessionId: string; userId: string; progress: number },
+  ) {
+    const code = payload.sessionId.toUpperCase();
+    try {
+      // Persist student progress directly to PostgreSQL
+      await this.classroomService.updateProgress(code, payload.userId, payload.progress);
+
+      const state = this.sessionStates.get(code);
+      if (state && state.students[payload.userId]) {
+        state.students[payload.userId].progress = payload.progress;
+      }
+
+      this.server.to(code).emit('student-progress', {
+        userId: payload.userId,
+        progress: payload.progress,
+      });
+    } catch (err) {
+      console.error('Failed to update progress in database:', err);
     }
   }
 
@@ -99,22 +137,11 @@ export class ClassroomGateway implements OnGatewayConnection, OnGatewayDisconnec
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { sessionId: string; state: any },
   ) {
-    const state = this.sessionStates.get(payload.sessionId);
+    const code = payload.sessionId.toUpperCase();
+    const state = this.sessionStates.get(code);
     if (state) {
       Object.assign(state, payload.state);
-      this.server.to(payload.sessionId).emit('state-updated', state);
-    }
-  }
-
-  @SubscribeMessage('update-progress')
-  handleUpdateProgress(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { sessionId: string; userId: string; progress: number },
-  ) {
-    const state = this.sessionStates.get(payload.sessionId);
-    if (state && state.students[payload.userId]) {
-      state.students[payload.userId].progress = payload.progress;
-      this.server.to(payload.sessionId).emit('student-progress', { userId: payload.userId, progress: payload.progress });
+      this.server.to(code).emit('state-updated', state);
     }
   }
 
@@ -123,23 +150,31 @@ export class ClassroomGateway implements OnGatewayConnection, OnGatewayDisconnec
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { sessionId: string; control: string; value: any },
   ) {
-    const state = this.sessionStates.get(payload.sessionId);
+    const code = payload.sessionId.toUpperCase();
+    const state = this.sessionStates.get(code);
     if (state) {
       state.teacherControls[payload.control] = payload.value;
-      this.server.to(payload.sessionId).emit('teacher-control-updated', { control: payload.control, value: payload.value });
+      this.server.to(code).emit('teacher-control-updated', {
+        control: payload.control,
+        value: payload.value,
+      });
     }
   }
 
   @SubscribeMessage('leave-classroom')
-  handleLeaveClassroom(
+  async handleLeaveClassroom(
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { sessionId: string; userId: string },
   ) {
-    client.leave(payload.sessionId);
-    const state = this.sessionStates.get(payload.sessionId);
+    const code = payload.sessionId.toUpperCase();
+    client.leave(code);
+
+    await this.classroomService.leaveSession(code, payload.userId);
+
+    const state = this.sessionStates.get(code);
     if (state && state.students[payload.userId]) {
       delete state.students[payload.userId];
-      this.server.to(payload.sessionId).emit('student-left', { userId: payload.userId });
+      this.server.to(code).emit('student-left', { userId: payload.userId });
     }
   }
 }
