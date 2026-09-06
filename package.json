@@ -14,14 +14,18 @@
     "lint": "turbo run lint",
     "clean": "turbo run clean && rm -rf node_modules",
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
+    "prisma:seed": "tsx prisma/seed.ts",
+    "start:demo": "./scripts/start-demo.sh",
+    "start:full": "./scripts/start-full.sh",
     "test:integration": "./scripts/test-docker-integration.sh"
   },
   "devDependencies": {
-    "turbo": "^1.11.0",
-    "typescript": "^5.3.0",
+    "@prisma/client": "5.22.0",
     "@types/node": "^20.10.0",
     "prisma": "5.22.0",
-    "@prisma/client": "5.22.0"
+    "tsx": "^4.23.13",
+    "turbo": "^1.11.0",
+    "typescript": "^5.3.0"
   },
   "engines": {
     "node": ">=18.0.0",

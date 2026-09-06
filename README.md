@@ -225,36 +225,45 @@ npx prisma migrate dev
 npx prisma generate
 ```
 
-### Running Locally
+### Running Locally: Two Modes
 
-#### Web App
+#### Mode 1: Zero-Database Demo / Preview Mode
+Runs the browser-based studio, game, worksheets, and URL persistence without requiring PostgreSQL or Docker:
 ```bash
-pnpm --filter @traceplay/web dev
+pnpm start:demo
+# or ./scripts/start-demo.sh
 ```
-Visit http://localhost:3000
+- **URL**: `http://localhost:3000`
+- **Features Active**:
+  - Activity Studio (Coloring Page & Connect-the-Dots outlines)
+  - Interactive Tracing Game with Web Audio, guide dots, and real animal outlines
+  - Printable worksheets formatted for classroom practice
+  - URL state synchronization (`?img=...&mode=...&threshold=...&lesson=...&game=...`)
+  - Excludes database-dependent features (Classroom) for instant preview
 
-#### Game
+#### Mode 2: Full Deployment Mode (with PostgreSQL & Backend)
+Starts PostgreSQL, synchronizes Prisma schema, seeds sample classroom data, and boots both the NestJS API and Next.js frontend:
 ```bash
-pnpm --filter @traceplay/game dev
+pnpm start:full
+# or ./scripts/start-full.sh
 ```
-Visit http://localhost:3001
+- **Web App**: `http://localhost:3001`
+- **Backend API**: `http://localhost:3000/api`
+- **Live Classroom**: Enabled with PostgreSQL persistence (`Room code TRACE-101`)
+- **Student Progress**: Real-time attendee roster and stroke tracking
 
-#### Backend
+#### Running Integration Tests (Docker & PostgreSQL)
+Execute the integration test suite verifying real session creation, student enrollment, and live progress persistence:
 ```bash
-pnpm --filter @traceplay/backend dev
-```
-API runs on http://localhost:3000
-
-#### Worker
-```bash
-pnpm --filter @traceplay/worker start
+pnpm test:integration
+# or ./scripts/test-docker-integration.sh
 ```
 
 ### Docker Setup
 
-Run all services with Docker Compose:
+Run all containerized services via Docker Compose:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 This starts:
