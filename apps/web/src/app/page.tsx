@@ -25,6 +25,7 @@ import ClassroomModal from '../components/ClassroomModal';
 import { DemoLesson, getDemoLessonById, demoStorybooks } from '../lib/demoData';
 
 import { TrainingHashState, encodeHashState, decodeHashState } from '../lib/hashState';
+import { getPredefinedShapesForImage } from '../lib/predefinedShapes';
 
 export default function Home() {
   const [basePath, setBasePath] = useState('');
@@ -407,78 +408,136 @@ export default function Home() {
       img.onload = async () => {
         try {
           let extracted: TracingShape[] = [];
+          const predefined = getPredefinedShapesForImage(
+            activeImageKey !== 'custom' ? activeImageKey : targetImage
+          );
 
-          // If OpenCV is loaded, try using OpenCV contours
-          const cv = typeof window !== 'undefined' ? (window as any).cv : null;
-          if (cv && cv.Mat && cv.imread) {
-            try {
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
+          // For predefined images (sea turtle, cats), render curated dots directly in dots/tracing modes
+          // to eliminate background landscape noise (trees/clouds) and guarantee clean non-overlapping dots
+          if (activeImageKey !== 'custom' && (targetMode === 'dots' || targetMode === 'tracing')) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              const w = img.naturalWidth || img.width || 600;
+              const h = img.naturalHeight || img.height || 600;
+              canvas.width = w;
+              canvas.height = h;
 
-                const src = cv.imread(canvas);
-                const gray = new cv.Mat();
-                const binary = new cv.Mat();
-                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-                cv.threshold(gray, binary, threshold, 255, cv.THRESH_BINARY_INV);
+              // White worksheet canvas
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, w, h);
 
-                const contours = new cv.MatVector();
-                const hierarchy = new cv.Mat();
-                cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
-                const white = new cv.Mat();
-                cv.cvtColor(src, white, cv.COLOR_RGBA2GRAY, 0);
-                white.setTo(new cv.Scalar(255, 255, 255, 255));
-
-                if (targetMode === 'coloring') {
-                  cv.drawContours(white, contours, -1, new cv.Scalar(15, 23, 42, 255), lineThickness);
-                } else {
-                  const minSpacing = Math.max(38, dotSpacing);
-                  const maxAllowedDots = 16;
-                  for (let i = 0; i < contours.size(); i++) {
-                    const cnt = contours.get(i);
-                    const peri = cv.arcLength(cnt, true);
-                    if (peri < 80) continue; // Skip tiny noise contours
-
-                    const pts: { x: number; y: number }[] = [];
-                    for (let j = 0; j < cnt.rows; j++) {
-                      const pt = cnt.data32S.subarray(j * 2, j * 2 + 2);
-                      const candidate = { x: pt[0], y: pt[1] };
-                      const tooClose = pts.some(
-                        (p) => Math.hypot(p.x - candidate.x, p.y - candidate.y) < minSpacing
-                      );
-                      if (!tooClose) {
-                        pts.push(candidate);
-                        cv.circle(white, new cv.Point(candidate.x, candidate.y), 4.5, new cv.Scalar(30, 41, 59, 255), -1);
-                        if (pts.length >= maxAllowedDots) break;
-                      }
-                    }
-                    if (pts.length >= 4) {
-                      extracted.push({ label: `Contour #${i + 1}`, points: pts });
-                      if (extracted.length >= 2) break; // Avoid overcrowding with too many contours
-                    }
-                  }
+              predefined.forEach((shape) => {
+                if (targetMode === 'tracing') {
+                  ctx.save();
+                  ctx.setLineDash([6, 6]);
+                  ctx.strokeStyle = '#94a3b8';
+                  ctx.lineWidth = 2.5;
+                  ctx.beginPath();
+                  shape.points.forEach((p, idx) => {
+                    const sx = (p.x / 600) * w;
+                    const sy = (p.y / 480) * h;
+                    if (idx === 0) ctx.moveTo(sx, sy);
+                    else ctx.lineTo(sx, sy);
+                  });
+                  ctx.closePath();
+                  ctx.stroke();
+                  ctx.restore();
                 }
 
-                cv.imshow(canvas, white);
+                shape.points.forEach((p, idx) => {
+                  const sx = (p.x / 600) * w;
+                  const sy = (p.y / 480) * h;
+                  ctx.beginPath();
+                  ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+                  ctx.fillStyle = '#1e293b';
+                  ctx.fill();
 
-                // Clean up OpenCV Mats
-                src.delete();
-                gray.delete();
-                binary.delete();
-                contours.delete();
-                hierarchy.delete();
-                white.delete();
+                  ctx.fillStyle = '#475569';
+                  ctx.font = 'bold 11px sans-serif';
+                  ctx.textAlign = 'center';
+                  ctx.fillText((idx + 1).toString(), sx, sy - 9);
+                });
+              });
+            }
+            extracted = predefined;
+          } else {
+            // If OpenCV is loaded, try using OpenCV contours
+            const cv = typeof window !== 'undefined' ? (window as any).cv : null;
+            if (cv && cv.Mat && cv.imread) {
+              try {
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  ctx.drawImage(img, 0, 0);
+
+                  const src = cv.imread(canvas);
+                  const gray = new cv.Mat();
+                  const binary = new cv.Mat();
+                  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+                  cv.threshold(gray, binary, threshold, 255, cv.THRESH_BINARY_INV);
+
+                  const contours = new cv.MatVector();
+                  const hierarchy = new cv.Mat();
+                  cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+                  const white = new cv.Mat();
+                  cv.cvtColor(src, white, cv.COLOR_RGBA2GRAY, 0);
+                  white.setTo(new cv.Scalar(255, 255, 255, 255));
+
+                  if (targetMode === 'coloring') {
+                    cv.drawContours(white, contours, -1, new cv.Scalar(15, 23, 42, 255), lineThickness);
+                  } else {
+                    const minSpacing = Math.max(38, dotSpacing);
+                    const maxAllowedDots = 16;
+                    for (let i = 0; i < contours.size(); i++) {
+                      const cnt = contours.get(i);
+                      const peri = cv.arcLength(cnt, true);
+                      if (peri < 80) continue; // Skip tiny noise contours
+
+                      const pts: { x: number; y: number }[] = [];
+                      for (let j = 0; j < cnt.rows; j++) {
+                        const pt = cnt.data32S.subarray(j * 2, j * 2 + 2);
+                        const candidate = { x: pt[0], y: pt[1] };
+                        const tooClose = pts.some(
+                          (p) => Math.hypot(p.x - candidate.x, p.y - candidate.y) < minSpacing
+                        );
+                        if (!tooClose) {
+                          pts.push(candidate);
+                          cv.circle(white, new cv.Point(candidate.x, candidate.y), 4.5, new cv.Scalar(30, 41, 59, 255), -1);
+                          if (pts.length >= maxAllowedDots) break;
+                        }
+                      }
+                      if (pts.length >= 4) {
+                        extracted.push({ label: `Contour #${i + 1}`, points: pts });
+                        if (extracted.length >= 2) break; // Avoid overcrowding with too many contours
+                      }
+                    }
+                  }
+
+                  cv.imshow(canvas, white);
+
+                  // Clean up OpenCV Mats
+                  src.delete();
+                  gray.delete();
+                  binary.delete();
+                  contours.delete();
+                  hierarchy.delete();
+                  white.delete();
+                }
+              } catch (cvErr) {
+                console.warn('OpenCV processing threw, falling back to Canvas engine:', cvErr);
+                extracted = processWithCanvasEngine(img, canvas, targetMode, threshold, dotSpacing, lineThickness);
               }
-            } catch (cvErr) {
-              console.warn('OpenCV processing threw, falling back to Canvas engine:', cvErr);
+            } else {
+              // Direct Pure Canvas Engine
               extracted = processWithCanvasEngine(img, canvas, targetMode, threshold, dotSpacing, lineThickness);
             }
-          } else {
-            // Direct Pure Canvas Engine
-            extracted = processWithCanvasEngine(img, canvas, targetMode, threshold, dotSpacing, lineThickness);
+
+            // In coloring mode for predefined characters, use predefined shapes for interactive game
+            if (activeImageKey !== 'custom' && predefined.length > 0) {
+              extracted = predefined;
+            }
           }
 
           if (extracted.length > 0) {

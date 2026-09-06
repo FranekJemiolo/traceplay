@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ShieldAlert,
 } from 'lucide-react';
+import { getPredefinedShapesForImage } from '../lib/predefinedShapes';
 
 export interface Point {
   x: number;
@@ -382,8 +383,11 @@ export default function TracingGameModal({
     if (mode === 'train') {
       return TRAINING_SHAPES;
     }
-    return shapes && shapes.length > 0 ? shapes : DEFAULT_CAT_SHAPES;
-  }, [mode, shapes]);
+    if (shapes && shapes.length > 0) {
+      return shapes;
+    }
+    return getPredefinedShapesForImage(imageUrl);
+  }, [mode, shapes, imageUrl]);
 
   // Normalize shape coordinates and filter out overlapping/crowded dots based on difficulty
   const normalizedShapes = useMemo<TracingShape[]>(() => {

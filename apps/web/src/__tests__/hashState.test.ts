@@ -1,5 +1,6 @@
 import { encodeHashState, decodeHashState, TrainingHashState } from '../lib/hashState';
 import { TRAINING_SHAPES } from '../components/TracingGameModal';
+import { getPredefinedShapesForImage } from '../lib/predefinedShapes';
 
 describe('Training Hash State Serialization', () => {
   it('should accurately encode and decode training state in base64', () => {
@@ -91,4 +92,39 @@ describe('Training Shapes Progression', () => {
     });
   });
 });
+
+describe('Predefined Shapes for Images', () => {
+  it('should return Sea Turtle shapes for turtle image and never cat shapes', () => {
+    const turtleShapes = getPredefinedShapesForImage('turtle');
+    expect(turtleShapes.length).toBeGreaterThanOrEqual(2);
+    expect(turtleShapes[0].label).toContain('Turtle');
+    expect(turtleShapes[0].label).not.toContain('Cat');
+
+    const turtleUrlShapes = getPredefinedShapesForImage('/traceplay/generated_turtle.png');
+    expect(turtleUrlShapes[0].label).toContain('Turtle');
+
+    // Verify all points are non-overlapping in turtle shapes
+    turtleShapes.forEach((shape) => {
+      expect(shape.points.length).toBeGreaterThanOrEqual(4);
+      for (let i = 0; i < shape.points.length; i++) {
+        for (let j = i + 1; j < shape.points.length; j++) {
+          const dist = Math.hypot(
+            shape.points[i].x - shape.points[j].x,
+            shape.points[i].y - shape.points[j].y
+          );
+          expect(dist).toBeGreaterThanOrEqual(30);
+        }
+      }
+    });
+  });
+
+  it('should return correct cat shapes for cat images', () => {
+    const catShapes = getPredefinedShapesForImage('cat_sample');
+    expect(catShapes[0].label).toContain('Cat');
+
+    const playfulShapes = getPredefinedShapesForImage('cat_playful');
+    expect(playfulShapes[0].label).toContain('Playful');
+  });
+});
+
 
