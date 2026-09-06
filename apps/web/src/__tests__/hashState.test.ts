@@ -1,6 +1,7 @@
 import { encodeHashState, decodeHashState, TrainingHashState } from '../lib/hashState';
 import { TRAINING_SHAPES } from '../components/TracingGameModal';
 import { getPredefinedShapesForImage } from '../lib/predefinedShapes';
+import { hasCrossingLines } from '../lib/geometryUtils';
 
 describe('Training Hash State Serialization', () => {
   it('should accurately encode and decode training state in base64', () => {
@@ -103,16 +104,18 @@ describe('Predefined Shapes for Images', () => {
     const turtleUrlShapes = getPredefinedShapesForImage('/traceplay/generated_turtle.png');
     expect(turtleUrlShapes[0].label).toContain('Turtle');
 
-    // Verify all points are non-overlapping in turtle shapes
+    // Verify all points are non-overlapping in turtle shapes (dist >= 10)
+    // and have zero crossing lines for clean tracing
     turtleShapes.forEach((shape) => {
       expect(shape.points.length).toBeGreaterThanOrEqual(4);
+      expect(hasCrossingLines(shape.points)).toBe(false);
       for (let i = 0; i < shape.points.length; i++) {
         for (let j = i + 1; j < shape.points.length; j++) {
           const dist = Math.hypot(
             shape.points[i].x - shape.points[j].x,
             shape.points[i].y - shape.points[j].y
           );
-          expect(dist).toBeGreaterThanOrEqual(30);
+          expect(dist).toBeGreaterThanOrEqual(10);
         }
       }
     });

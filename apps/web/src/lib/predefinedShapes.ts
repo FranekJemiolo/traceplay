@@ -3,48 +3,126 @@ import { TracingShape } from '../components/TracingGameModal';
 // High-quality, anatomically accurate shapes for Sea Turtle
 export const DEFAULT_TURTLE_SHAPES: TracingShape[] = [
   {
-    label: 'Sea Turtle Shell & Body',
+    label: 'Sea Turtle Character Silhouette',
     points: [
-      { x: 260, y: 150 }, // Top of shell
-      { x: 330, y: 170 }, // Upper shell curve
-      { x: 390, y: 220 }, // Neck / shell joint
-      { x: 420, y: 290 }, // Chest / belly
-      { x: 400, y: 370 }, // Right leg / foot
-      { x: 330, y: 400 }, // Lower belly
-      { x: 260, y: 400 }, // Left foot
-      { x: 200, y: 360 }, // Lower shell edge
-      { x: 170, y: 290 }, // Left shell edge
-      { x: 190, y: 210 }, // Upper left shell
+      // Top of head & crown
+      { x: 332, y: 66 },
+      { x: 347, y: 69 },
+      { x: 361, y: 78 },
+      { x: 373, y: 94 },
+      { x: 378, y: 116 },
+      // Right cheek & smiling mouth
+      { x: 383, y: 138 },
+      { x: 381, y: 159 },
+      { x: 372, y: 175 },
+      // Waving hand & flipper fingers
+      { x: 381, y: 186 },
+      { x: 395, y: 195 },
+      { x: 406, y: 209 },
+      { x: 409, y: 222 },
+      { x: 407, y: 234 },
+      { x: 400, y: 250 },
+      { x: 388, y: 262 },
+      { x: 375, y: 272 },
+      // Flank & shell rim under arm
+      { x: 355, y: 278 },
+      { x: 358, y: 294 },
+      { x: 361, y: 312 },
+      { x: 361, y: 331 },
+      { x: 356, y: 350 },
+      { x: 349, y: 366 },
+      // Right leg & foot toes
+      { x: 352, y: 381 },
+      { x: 356, y: 400 },
+      { x: 359, y: 414 },
+      { x: 358, y: 425 },
+      { x: 347, y: 428 },
+      { x: 337, y: 428 },
+      { x: 326, y: 422 },
+      // Inner leg arch up to belly
+      { x: 320, y: 400 },
+      { x: 314, y: 375 },
+      { x: 306, y: 350 },
+      { x: 296, y: 341 },
+      // Left leg & foot toes
+      { x: 289, y: 362 },
+      { x: 288, y: 388 },
+      { x: 289, y: 409 },
+      { x: 286, y: 428 },
+      { x: 280, y: 444 },
+      { x: 268, y: 447 },
+      { x: 255, y: 445 },
+      { x: 247, y: 434 },
+      // Outer leg curve up to tail
+      { x: 246, y: 412 },
+      { x: 247, y: 391 },
+      { x: 242, y: 372 },
+      // Pointed tail
+      { x: 230, y: 366 },
+      { x: 213, y: 362 },
+      { x: 201, y: 359 },
+      { x: 213, y: 349 },
+      { x: 226, y: 339 },
+      // Main domed carapace shell (left curve)
+      { x: 222, y: 319 },
+      { x: 216, y: 294 },
+      { x: 213, y: 269 },
+      { x: 213, y: 244 },
+      { x: 216, y: 219 },
+      { x: 222, y: 194 },
+      { x: 234, y: 172 },
+      { x: 249, y: 153 },
+      { x: 268, y: 141 },
+      { x: 283, y: 131 },
+      // Neck and back of head
+      { x: 288, y: 109 },
+      { x: 295, y: 88 },
+      { x: 312, y: 70 },
     ],
   },
   {
     label: 'Turtle Head & Waving Hand',
     points: [
-      { x: 340, y: 120 }, // Top of head
-      { x: 390, y: 130 }, // Forehead
-      { x: 425, y: 165 }, // Cheek & smile
-      { x: 410, y: 205 }, // Chin
-      { x: 455, y: 215 }, // Waving hand top
-      { x: 475, y: 245 }, // Waving hand palm
-      { x: 435, y: 265 }, // Arm base
-      { x: 380, y: 235 }, // Scarf / neck
-      { x: 325, y: 180 }, // Back of neck
+      { x: 332, y: 66 },
+      { x: 347, y: 69 },
+      { x: 361, y: 78 },
+      { x: 373, y: 94 },
+      { x: 378, y: 116 },
+      { x: 383, y: 138 },
+      { x: 381, y: 159 },
+      { x: 372, y: 175 },
+      { x: 381, y: 186 },
+      { x: 395, y: 195 },
+      { x: 406, y: 209 },
+      { x: 409, y: 222 },
+      { x: 407, y: 234 },
+      { x: 400, y: 250 },
+      { x: 388, y: 262 },
+      { x: 375, y: 272 },
+      { x: 361, y: 276 },
+      { x: 347, y: 275 },
+      { x: 332, y: 262 },
+      { x: 320, y: 238 },
+      { x: 309, y: 200 },
+      { x: 298, y: 162 },
+      { x: 288, y: 109 },
+      { x: 295, y: 88 },
+      { x: 312, y: 70 },
     ],
   },
   {
     label: 'Turtle Shell Hexagon Scutes',
     points: [
-      { x: 230, y: 210 },
-      { x: 280, y: 200 },
-      { x: 330, y: 230 },
-      { x: 340, y: 290 },
-      { x: 300, y: 340 },
-      { x: 240, y: 340 },
-      { x: 200, y: 300 },
-      { x: 200, y: 240 },
+      { x: 268, y: 172 },
+      { x: 288, y: 194 },
+      { x: 286, y: 250 },
+      { x: 264, y: 278 },
+      { x: 241, y: 256 },
+      { x: 243, y: 200 },
     ],
   },
 ];
+
 
 // Pixel-accurate contours for Cute Cat (Sample) - directly traced from cat_sample.png
 export const DEFAULT_CAT_SAMPLE_SHAPES: TracingShape[] = [
