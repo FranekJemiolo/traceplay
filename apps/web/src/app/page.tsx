@@ -38,7 +38,7 @@ export default function Home() {
 
   // Studio Sliders
   const [threshold, setThreshold] = useState<number>(128);
-  const [dotSpacing, setDotSpacing] = useState<number>(18);
+  const [dotSpacing, setDotSpacing] = useState<number>(42);
   const [lineThickness, setLineThickness] = useState<number>(2);
 
   // Modals state
@@ -307,27 +307,22 @@ export default function Home() {
           ctx.fillRect(x - halfThick, y - halfThick, thicknessVal, thicknessVal);
         }
       } else if (mode === 'dots' || mode === 'tracing') {
-        // Connect-the-dots or tracing worksheet
-        const step = Math.max(10, spacingVal);
+        // Connect-the-dots or tracing worksheet:
+        // Enforce generous spacing (min 38px) and cap dots at 16 to avoid clutter and overlap
+        const minSpacing = Math.max(38, spacingVal);
+        const maxAllowedDots = 16;
         const sampledPoints: Array<{ x: number; y: number }> = [];
 
-        // Sample along edges with minimum distance
-        const stepSq = step * step;
+        // Sample along edges with strict Euclidean distance check against all chosen points
         for (let i = 0; i < edges.length; i += 2) {
           const pt = edges[i];
-          let tooClose = false;
-          for (let s = 0; s < sampledPoints.length; s++) {
-            const dx = sampledPoints[s].x - pt.x;
-            const dy = sampledPoints[s].y - pt.y;
-            if (dx * dx + dy * dy < stepSq) {
-              tooClose = true;
-              break;
-            }
-          }
+          const tooClose = sampledPoints.some(
+            (s) => Math.hypot(s.x - pt.x, s.y - pt.y) < minSpacing
+          );
           if (!tooClose) {
             sampledPoints.push(pt);
+            if (sampledPoints.length >= maxAllowedDots) break;
           }
-          if (sampledPoints.length >= 60) break; // Keep manageable for student activities
         }
 
         // Sort points clockwise / radially from centroid for sequential connect-the-dots
@@ -440,19 +435,29 @@ export default function Home() {
                 if (targetMode === 'coloring') {
                   cv.drawContours(white, contours, -1, new cv.Scalar(15, 23, 42, 255), lineThickness);
                 } else {
-                  const dotStep = Math.max(10, dotSpacing);
+                  const minSpacing = Math.max(38, dotSpacing);
+                  const maxAllowedDots = 16;
                   for (let i = 0; i < contours.size(); i++) {
                     const cnt = contours.get(i);
+                    const peri = cv.arcLength(cnt, true);
+                    if (peri < 80) continue; // Skip tiny noise contours
+
                     const pts: { x: number; y: number }[] = [];
-                    for (let j = 0; j < cnt.rows; j += dotStep) {
+                    for (let j = 0; j < cnt.rows; j++) {
                       const pt = cnt.data32S.subarray(j * 2, j * 2 + 2);
-                      const x = pt[0];
-                      const y = pt[1];
-                      pts.push({ x, y });
-                      cv.circle(white, new cv.Point(x, y), 4, new cv.Scalar(30, 41, 59, 255), -1);
+                      const candidate = { x: pt[0], y: pt[1] };
+                      const tooClose = pts.some(
+                        (p) => Math.hypot(p.x - candidate.x, p.y - candidate.y) < minSpacing
+                      );
+                      if (!tooClose) {
+                        pts.push(candidate);
+                        cv.circle(white, new cv.Point(candidate.x, candidate.y), 4.5, new cv.Scalar(30, 41, 59, 255), -1);
+                        if (pts.length >= maxAllowedDots) break;
+                      }
                     }
-                    if (pts.length >= 3) {
+                    if (pts.length >= 4) {
                       extracted.push({ label: `Contour #${i + 1}`, points: pts });
+                      if (extracted.length >= 2) break; // Avoid overcrowding with too many contours
                     }
                   }
                 }
@@ -842,8 +847,8 @@ export default function Home() {
                   </div>
                   <input
                     type="range"
-                    min="10"
-                    max="45"
+                    min="24"
+                    max="65"
                     value={dotSpacing}
                     onChange={(e) => handleDotSpacingChange(Number(e.target.value))}
                     className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"

@@ -67,15 +67,28 @@ describe('Training Shapes Progression', () => {
     expect(TRAINING_SHAPES[2].label).toContain('Square');
     expect(TRAINING_SHAPES[2].points.length).toBeGreaterThanOrEqual(4);
 
-    // All points should have valid coordinates
+    // All points should have valid coordinates and maintain non-overlapping distance
     TRAINING_SHAPES.forEach((shape) => {
       expect(shape.points.length).toBeGreaterThan(0);
+      expect(shape.points.length).toBeLessThanOrEqual(16); // Never overcrowded on easy
       shape.points.forEach((pt) => {
         expect(typeof pt.x).toBe('number');
         expect(typeof pt.y).toBe('number');
         expect(pt.x).toBeGreaterThan(0);
         expect(pt.y).toBeGreaterThan(0);
       });
+
+      // Assert no points overlap (minimum Euclidean distance of 40px)
+      for (let i = 0; i < shape.points.length; i++) {
+        for (let j = i + 1; j < shape.points.length; j++) {
+          const dist = Math.hypot(
+            shape.points[i].x - shape.points[j].x,
+            shape.points[i].y - shape.points[j].y
+          );
+          expect(dist).toBeGreaterThanOrEqual(40);
+        }
+      }
     });
   });
 });
+

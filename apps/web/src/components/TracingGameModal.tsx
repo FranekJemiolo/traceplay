@@ -385,11 +385,17 @@ export default function TracingGameModal({
     return shapes && shapes.length > 0 ? shapes : DEFAULT_CAT_SHAPES;
   }, [mode, shapes]);
 
-  // Normalize shape coordinates to fit comfortably in 600x480 canvas
+  // Normalize shape coordinates and filter out overlapping/crowded dots based on difficulty
   const normalizedShapes = useMemo<TracingShape[]>(() => {
     const canvasW = 600;
     const canvasH = 480;
     const margin = 50;
+
+    // Minimum distance threshold to ensure dots NEVER overlap:
+    // Easy mode: larger spacing (48px) and fewer dots (max 12) for clarity
+    // Hard mode: exact spacing (32px) and up to 24 dots
+    const minDotDist = difficulty === 'easy' ? 48 : 32;
+    const maxDots = difficulty === 'easy' ? 12 : 24;
 
     return activeShapePool.map((shape) => {
       if (shape.points.length === 0) return shape;
@@ -421,12 +427,49 @@ export default function TracingGameModal({
         y: Math.round(p.y * scale + offsetY),
       }));
 
+      // Non-overlapping decimation filter:
+      // Guarantees no two dots are closer than minDotDist and keeps total dots clean & legible
+      const filteredPoints: Point[] = [];
+      for (let i = 0; i < fittedPoints.length; i++) {
+        const pt = fittedPoints[i];
+        if (filteredPoints.length === 0) {
+          filteredPoints.push(pt);
+          continue;
+        }
+
+        const prev = filteredPoints[filteredPoints.length - 1];
+        const distPrev = Math.hypot(pt.x - prev.x, pt.y - prev.y);
+
+        // Distance to all already-accepted points to prevent cross-path overlap
+        const tooClose = filteredPoints.some(
+          (p) => Math.hypot(p.x - pt.x, p.y - pt.y) < minDotDist
+        );
+
+        if (distPrev >= minDotDist && !tooClose) {
+          filteredPoints.push(pt);
+          if (filteredPoints.length >= maxDots) break;
+        }
+      }
+
+      // Check loop closure: ensure last point isn't right on top of first point
+      if (filteredPoints.length > 3) {
+        const distStart = Math.hypot(
+          filteredPoints[filteredPoints.length - 1].x - filteredPoints[0].x,
+          filteredPoints[filteredPoints.length - 1].y - filteredPoints[0].y
+        );
+        if (distStart < minDotDist) {
+          filteredPoints.pop();
+        }
+      }
+
+      const finalPoints = filteredPoints.length >= 3 ? filteredPoints : fittedPoints;
+
       return {
         label: shape.label,
-        points: fittedPoints,
+        points: finalPoints,
       };
     });
-  }, [activeShapePool]);
+  }, [activeShapePool, difficulty]);
 
   const currentShape = normalizedShapes[currentShapeIndex] || normalizedShapes[0];
 
