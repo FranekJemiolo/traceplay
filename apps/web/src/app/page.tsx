@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Sparkles,
   BookOpen,
@@ -19,23 +19,19 @@ import {
   Award,
 } from 'lucide-react';
 import CurriculumView from '../components/CurriculumView';
-import TracingGameModal from '../components/TracingGameModal';
+import TracingGameModal, { TracingShape } from '../components/TracingGameModal';
 import ClassroomModal from '../components/ClassroomModal';
-import { DemoLesson } from '../lib/demoData';
-
-const isDemoMode =
-  process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ||
-  (typeof window !== 'undefined' && window.location.hostname.includes('github.io'));
+import { DemoLesson, getDemoLessonById, demoStorybooks } from '../lib/demoData';
 
 export default function Home() {
   const [basePath, setBasePath] = useState('');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string>('');
+  const [activeImageKey, setActiveImageKey] = useState<'turtle' | 'cat_sample' | 'cat_playful' | 'custom'>('cat_sample');
   const [processedImage, setProcessedImage] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [opencvReady, setOpencvReady] = useState(false);
   const [conversionMode, setConversionMode] = useState<'coloring' | 'dots' | 'tracing'>('coloring');
   const [processingStage, setProcessingStage] = useState<string>('');
-  const [estimatedTime, setEstimatedTime] = useState<number>(0);
 
   // Studio Sliders
   const [threshold, setThreshold] = useState<number>(128);
@@ -46,12 +42,39 @@ export default function Home() {
   const [isCurriculumOpen, setIsCurriculumOpen] = useState(false);
   const [isGameOpen, setIsGameOpen] = useState(false);
   const [isClassroomOpen, setIsClassroomOpen] = useState(false);
-  const [activeLessonTitle, setActiveLessonTitle] = useState('Image Tracing Adventure');
-  const [extractedShapes, setExtractedShapes] = useState<Array<{ label: string; points: { x: number; y: number }[] }>>([]);
+  const [activeLessonId, setActiveLessonId] = useState<string>('lesson-cat-1');
+  const [activeLessonTitle, setActiveLessonTitle] = useState('Cute Cat Tracing Adventure');
+  const [extractedShapes, setExtractedShapes] = useState<TracingShape[]>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const printCanvasRef = useRef<HTMLCanvasElement>(null);
+  const isInitialMount = useRef(true);
 
+  // Helper to format asset paths for base path
+  const getAssetPath = useCallback((path: string, currentBasePath = basePath) => {
+    if (!path) return '';
+    if (path.startsWith('http') || path.startsWith('data:')) return path;
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${currentBasePath}${cleanPath}`;
+  }, [basePath]);
+
+  // Sync state with URL search parameters
+  const updateUrlParams = useCallback((params: Record<string, string | null>) => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === null) {
+        url.searchParams.delete(key);
+      } else {
+        url.searchParams.set(key, value);
+      }
+    });
+
+    window.history.replaceState(null, '', url.toString());
+  }, []);
+
+  // Initialization & URL reading
   useEffect(() => {
     let detectedBasePath = '';
     if (typeof window !== 'undefined' && window.location.pathname.startsWith('/traceplay')) {
@@ -59,162 +82,413 @@ export default function Home() {
     }
     setBasePath(detectedBasePath);
 
-    const imagePath = `${detectedBasePath}/generated_turtle.png`;
-    setSelectedImage(imagePath);
+    // Read URL search params
+    const searchParams = new URLSearchParams(window.location.search);
+    const urlImg = searchParams.get('img');
+    const urlMode = searchParams.get('mode') as 'coloring' | 'dots' | 'tracing' | null;
+    const urlThreshold = searchParams.get('threshold');
+    const urlSpacing = searchParams.get('spacing');
+    const urlThickness = searchParams.get('thickness');
+    const urlLesson = searchParams.get('lesson');
+    const urlGame = searchParams.get('game');
+    const urlCurriculum = searchParams.get('curriculum');
+    const urlClassroom = searchParams.get('classroom');
 
+    // Initialize mode
+    if (urlMode && ['coloring', 'dots', 'tracing'].includes(urlMode)) {
+      setConversionMode(urlMode);
+    }
+
+    // Initialize sliders
+    if (urlThreshold) setThreshold(Number(urlThreshold));
+    if (urlSpacing) setDotSpacing(Number(urlSpacing));
+    if (urlThickness) setLineThickness(Number(urlThickness));
+
+    // Initialize lesson & image
+    let initialImg = `${detectedBasePath}/cat_sample.png`;
+    let initialKey: 'turtle' | 'cat_sample' | 'cat_playful' | 'custom' = 'cat_sample';
+
+    if (urlLesson) {
+      const foundLesson = getDemoLessonById(urlLesson);
+      if (foundLesson) {
+        setActiveLessonId(foundLesson.id);
+        setActiveLessonTitle(foundLesson.title);
+        initialImg = getAssetPath(foundLesson.imageUrl, detectedBasePath);
+        if (foundLesson.imageUrl.includes('turtle')) initialKey = 'turtle';
+        else if (foundLesson.imageUrl.includes('cat_playful')) initialKey = 'cat_playful';
+        else initialKey = 'cat_sample';
+      }
+    } else if (urlImg) {
+      if (urlImg === 'turtle') {
+        initialImg = `${detectedBasePath}/generated_turtle.png`;
+        initialKey = 'turtle';
+      } else if (urlImg === 'cat_playful') {
+        initialImg = `${detectedBasePath}/cat_playful.png`;
+        initialKey = 'cat_playful';
+      } else if (urlImg === 'cat_sample') {
+        initialImg = `${detectedBasePath}/cat_sample.png`;
+        initialKey = 'cat_sample';
+      } else {
+        initialImg = urlImg;
+        initialKey = 'custom';
+      }
+    }
+
+    setSelectedImage(initialImg);
+    setActiveImageKey(initialKey);
+
+    // Initialize modals
+    if (urlGame === '1' || urlGame === 'true') setIsGameOpen(true);
+    if (urlCurriculum === '1' || urlCurriculum === 'true') setIsCurriculumOpen(true);
+    if (urlClassroom === '1' || urlClassroom === 'true') setIsClassroomOpen(true);
+
+    // Check OpenCV readiness
     const checkOpenCV = setInterval(() => {
-      if (typeof window !== 'undefined' && (window as any).cv) {
+      if (typeof window !== 'undefined' && (window as any).cv && (window as any).cv.Mat) {
         setOpencvReady(true);
         clearInterval(checkOpenCV);
       }
-    }, 100);
+    }, 150);
 
     return () => clearInterval(checkOpenCV);
-  }, []);
+  }, [getAssetPath]);
 
+  // Pure Canvas Vectorization & Outlines Engine (Guaranteed zero-dependency fallback)
+  const processWithCanvasEngine = useCallback(
+    (
+      img: HTMLImageElement,
+      canvas: HTMLCanvasElement,
+      mode: 'coloring' | 'dots' | 'tracing',
+      threshVal: number,
+      spacingVal: number,
+      thicknessVal: number
+    ): TracingShape[] => {
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return [];
+
+      const w = img.naturalWidth || img.width || 600;
+      const h = img.naturalHeight || img.height || 600;
+      canvas.width = w;
+      canvas.height = h;
+
+      // Draw source image
+      ctx.drawImage(img, 0, 0, w, h);
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const data = imgData.data;
+
+      // Grayscale and threshold mask
+      const binary = new Uint8Array(w * h);
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        const pixelIdx = i / 4;
+        binary[pixelIdx] = gray < threshVal ? 1 : 0;
+      }
+
+      // Edge detection: pixel is 1 and has at least one 0 neighbor
+      const edges: Array<{ x: number; y: number }> = [];
+      const edgeGrid = new Uint8Array(w * h);
+
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const idx = y * w + x;
+          if (binary[idx] === 1) {
+            if (
+              binary[idx - 1] === 0 ||
+              binary[idx + 1] === 0 ||
+              binary[idx - w] === 0 ||
+              binary[idx + w] === 0
+            ) {
+              edgeGrid[idx] = 1;
+              edges.push({ x, y });
+            }
+          }
+        }
+      }
+
+      // Fill canvas with crisp clean white
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+
+      const generatedShapes: TracingShape[] = [];
+
+      if (mode === 'coloring') {
+        // Crisp coloring outlines
+        ctx.fillStyle = '#0f172a';
+        const halfThick = Math.floor(thicknessVal / 2);
+        for (let i = 0; i < edges.length; i++) {
+          const { x, y } = edges[i];
+          ctx.fillRect(x - halfThick, y - halfThick, thicknessVal, thicknessVal);
+        }
+      } else if (mode === 'dots' || mode === 'tracing') {
+        // Connect-the-dots or tracing worksheet
+        const step = Math.max(10, spacingVal);
+        const sampledPoints: Array<{ x: number; y: number }> = [];
+
+        // Sample along edges with minimum distance
+        const stepSq = step * step;
+        for (let i = 0; i < edges.length; i += 2) {
+          const pt = edges[i];
+          let tooClose = false;
+          for (let s = 0; s < sampledPoints.length; s++) {
+            const dx = sampledPoints[s].x - pt.x;
+            const dy = sampledPoints[s].y - pt.y;
+            if (dx * dx + dy * dy < stepSq) {
+              tooClose = true;
+              break;
+            }
+          }
+          if (!tooClose) {
+            sampledPoints.push(pt);
+          }
+          if (sampledPoints.length >= 60) break; // Keep manageable for student activities
+        }
+
+        // Sort points clockwise / radially from centroid for sequential connect-the-dots
+        if (sampledPoints.length > 3) {
+          let cx = 0, cy = 0;
+          sampledPoints.forEach((p) => { cx += p.x; cy += p.y; });
+          cx /= sampledPoints.length;
+          cy /= sampledPoints.length;
+
+          sampledPoints.sort((a, b) => {
+            const angleA = Math.atan2(a.y - cy, a.x - cx);
+            const angleB = Math.atan2(b.y - cy, b.x - cx);
+            return angleA - angleB;
+          });
+        }
+
+        if (mode === 'tracing') {
+          // Draw subtle dashed guidelines
+          ctx.save();
+          ctx.setLineDash([6, 6]);
+          ctx.strokeStyle = '#94a3b8';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          sampledPoints.forEach((pt, idx) => {
+            if (idx === 0) ctx.moveTo(pt.x, pt.y);
+            else ctx.lineTo(pt.x, pt.y);
+          });
+          ctx.closePath();
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Draw numbered dots
+        sampledPoints.forEach((pt, idx) => {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#1e293b';
+          ctx.fill();
+
+          // Small dot number
+          ctx.fillStyle = '#475569';
+          ctx.font = 'bold 10px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText((idx + 1).toString(), pt.x, pt.y - 8);
+        });
+
+        if (sampledPoints.length >= 4) {
+          generatedShapes.push({
+            label: `${activeLessonTitle || 'Activity'} Contour`,
+            points: sampledPoints,
+          });
+        }
+      }
+
+      return generatedShapes;
+    },
+    [activeLessonTitle]
+  );
+
+  // Main Image Processor (Hybrid OpenCV + Pure Canvas fallback)
+  const handleProcessImage = useCallback(
+    async (
+      targetMode: 'coloring' | 'dots' | 'tracing' = conversionMode,
+      targetImage: string = selectedImage
+    ) => {
+      if (!targetImage || !canvasRef.current) return;
+
+      setIsProcessing(true);
+      setProcessingStage('Analyzing image contours...');
+
+      const canvas = canvasRef.current;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = targetImage;
+
+      img.onerror = () => {
+        console.error('Failed to load image:', targetImage);
+        setIsProcessing(false);
+        setProcessingStage('');
+      };
+
+      img.onload = async () => {
+        try {
+          let extracted: TracingShape[] = [];
+
+          // If OpenCV is loaded, try using OpenCV contours
+          const cv = typeof window !== 'undefined' ? (window as any).cv : null;
+          if (cv && cv.Mat && cv.imread) {
+            try {
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+
+                const src = cv.imread(canvas);
+                const gray = new cv.Mat();
+                const binary = new cv.Mat();
+                cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+                cv.threshold(gray, binary, threshold, 255, cv.THRESH_BINARY_INV);
+
+                const contours = new cv.MatVector();
+                const hierarchy = new cv.Mat();
+                cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+                const white = new cv.Mat();
+                cv.cvtColor(src, white, cv.COLOR_RGBA2GRAY, 0);
+                white.setTo(new cv.Scalar(255, 255, 255, 255));
+
+                if (targetMode === 'coloring') {
+                  cv.drawContours(white, contours, -1, new cv.Scalar(15, 23, 42, 255), lineThickness);
+                } else {
+                  const dotStep = Math.max(10, dotSpacing);
+                  for (let i = 0; i < contours.size(); i++) {
+                    const cnt = contours.get(i);
+                    const pts: { x: number; y: number }[] = [];
+                    for (let j = 0; j < cnt.rows; j += dotStep) {
+                      const pt = cnt.data32S.subarray(j * 2, j * 2 + 2);
+                      const x = pt[0];
+                      const y = pt[1];
+                      pts.push({ x, y });
+                      cv.circle(white, new cv.Point(x, y), 4, new cv.Scalar(30, 41, 59, 255), -1);
+                    }
+                    if (pts.length >= 3) {
+                      extracted.push({ label: `Contour #${i + 1}`, points: pts });
+                    }
+                  }
+                }
+
+                cv.imshow(canvas, white);
+
+                // Clean up OpenCV Mats
+                src.delete();
+                gray.delete();
+                binary.delete();
+                contours.delete();
+                hierarchy.delete();
+                white.delete();
+              }
+            } catch (cvErr) {
+              console.warn('OpenCV processing threw, falling back to Canvas engine:', cvErr);
+              extracted = processWithCanvasEngine(img, canvas, targetMode, threshold, dotSpacing, lineThickness);
+            }
+          } else {
+            // Direct Pure Canvas Engine
+            extracted = processWithCanvasEngine(img, canvas, targetMode, threshold, dotSpacing, lineThickness);
+          }
+
+          if (extracted.length > 0) {
+            setExtractedShapes(extracted);
+          }
+          setProcessedImage(true);
+        } catch (err) {
+          console.error('Processing error:', err);
+        } finally {
+          setIsProcessing(false);
+          setProcessingStage('');
+        }
+      };
+    },
+    [conversionMode, selectedImage, threshold, dotSpacing, lineThickness, processWithCanvasEngine]
+  );
+
+  // Trigger processing when selectedImage or conversionMode changes
+  useEffect(() => {
+    if (selectedImage) {
+      handleProcessImage(conversionMode, selectedImage);
+    }
+  }, [selectedImage, conversionMode]);
+
+  // Mode Selection Helper
+  const handleModeSelect = (mode: 'coloring' | 'dots' | 'tracing') => {
+    setConversionMode(mode);
+    updateUrlParams({ mode });
+    handleProcessImage(mode, selectedImage);
+  };
+
+  // Image Selection Helper
+  const handleSelectPredefinedImage = (key: 'turtle' | 'cat_sample' | 'cat_playful', filename: string) => {
+    const fullPath = `${basePath}/${filename}`;
+    setSelectedImage(fullPath);
+    setActiveImageKey(key);
+    updateUrlParams({ img: key });
+  };
+
+  // Image Upload Helper
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && canvasRef.current) {
+    if (file) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const result = e.target?.result as string;
         setSelectedImage(result);
-        setProcessedImage(false);
-
-        const img = new Image();
-        img.onload = () => {
-          const canvas = canvasRef.current;
-          if (!canvas) return;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return;
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-        };
-        img.src = result;
+        setActiveImageKey('custom');
+        updateUrlParams({ img: 'custom' });
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleProcessImage = async (mode = conversionMode) => {
-    if (!selectedImage || !opencvReady || !canvasRef.current) return;
+  // Curriculum Lesson Start Helper
+  const handleStartLessonFromCurriculum = (lesson: DemoLesson) => {
+    setIsCurriculumOpen(false);
+    setActiveLessonId(lesson.id);
+    setActiveLessonTitle(lesson.title);
+    const lessonImgPath = getAssetPath(lesson.imageUrl);
+    setSelectedImage(lessonImgPath);
 
-    setIsProcessing(true);
-    setProcessingStage('Reading image with OpenCV...');
-    setEstimatedTime(1);
-    await new Promise((r) => setTimeout(r, 80));
+    if (lesson.imageUrl.includes('turtle')) setActiveImageKey('turtle');
+    else if (lesson.imageUrl.includes('cat_playful')) setActiveImageKey('cat_playful');
+    else setActiveImageKey('cat_sample');
 
-    try {
-      const cv = (window as any).cv;
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = selectedImage;
+    updateUrlParams({
+      lesson: lesson.id,
+      img: lesson.imageUrl.includes('turtle') ? 'turtle' : lesson.imageUrl.includes('cat_playful') ? 'cat_playful' : 'cat_sample',
+      game: '1',
+    });
 
-      img.onerror = () => {
-        console.error('Failed to load image for processing:', img.src);
-        setProcessingStage('');
-        setIsProcessing(false);
-      };
+    setIsGameOpen(true);
+  };
 
-      img.onload = async () => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
+  // Sliders change handlers with URL sync
+  const handleThresholdChange = (val: number) => {
+    setThreshold(val);
+    updateUrlParams({ threshold: val.toString() });
+  };
 
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
+  const handleDotSpacingChange = (val: number) => {
+    setDotSpacing(val);
+    updateUrlParams({ spacing: val.toString() });
+  };
 
-        setProcessingStage('Extracting vector contours...');
-        await new Promise((r) => setTimeout(r, 50));
-
-        const src = cv.imread(canvas);
-        const gray = new cv.Mat();
-        const binary = new cv.Mat();
-
-        // Convert to grayscale and threshold
-        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-        cv.threshold(gray, binary, threshold, 255, cv.THRESH_BINARY_INV);
-
-        // Find contours
-        const contours = new cv.MatVector();
-        const hierarchy = new cv.Mat();
-        cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
-        setProcessingStage('Synthesizing worksheet artwork...');
-        await new Promise((r) => setTimeout(r, 50));
-
-        // Create crisp white canvas
-        const output = new cv.Mat(src.rows, src.cols, cv.CV_8UC4, new cv.Scalar(255, 255, 255, 255));
-
-        const detectedShapeList: Array<{ label: string; points: { x: number; y: number }[] }> = [];
-
-        if (mode === 'coloring') {
-          // Sharp black outlines for coloring book
-          cv.drawContours(output, contours, -1, [15, 23, 42, 255], lineThickness);
-        } else if (mode === 'dots' || mode === 'tracing') {
-          // Connect the dots or tracing exercise
-          const dotStep = Math.max(8, dotSpacing);
-
-          for (let i = 0; i < contours.size(); i++) {
-            const cnt = contours.get(i);
-            const shapePts: { x: number; y: number }[] = [];
-
-            if (mode === 'tracing') {
-              // Draw light dashed guideline
-              cv.drawContours(output, contours, i, [148, 163, 184, 255], 1);
-            }
-
-            for (let j = 0; j < cnt.rows; j += dotStep) {
-              const pt = cnt.data32S.subarray(j * 2, j * 2 + 2);
-              const x = pt[0];
-              const y = pt[1];
-              shapePts.push({ x, y });
-
-              // Draw solid connect dot
-              cv.circle(output, new cv.Point(x, y), 3, [30, 41, 59, 255], -1);
-            }
-
-            if (shapePts.length >= 3) {
-              detectedShapeList.push({
-                label: `Contour #${i + 1}`,
-                points: shapePts,
-              });
-            }
-          }
-        }
-
-        cv.imshow(canvas, output);
-
-        // Clean up mats
-        src.delete();
-        gray.delete();
-        binary.delete();
-        contours.delete();
-        hierarchy.delete();
-        output.delete();
-
-        if (detectedShapeList.length > 0) {
-          setExtractedShapes(detectedShapeList);
-        }
-
-        setProcessingStage('');
-        setIsProcessing(false);
-        setProcessedImage(true);
-      };
-    } catch (err) {
-      console.error('Processing error:', err);
-      setProcessingStage('');
-      setIsProcessing(false);
-    }
+  const handleLineThicknessChange = (val: number) => {
+    setLineThickness(val);
+    updateUrlParams({ thickness: val.toString() });
   };
 
   const handlePrintWorksheet = () => {
-    if (canvasRef.current) {
-      window.print();
+    if (canvasRef.current && printCanvasRef.current) {
+      const pCanvas = printCanvasRef.current;
+      const ctx = pCanvas.getContext('2d');
+      if (ctx) {
+        pCanvas.width = canvasRef.current.width;
+        pCanvas.height = canvasRef.current.height;
+        ctx.drawImage(canvasRef.current, 0, 0);
+      }
     }
+    window.print();
   };
 
   const handleDownloadPNG = () => {
@@ -226,27 +500,20 @@ export default function Home() {
     }
   };
 
-  const handleStartLessonFromCurriculum = (lesson: DemoLesson) => {
-    setIsCurriculumOpen(false);
-    setActiveLessonTitle(lesson.title);
-    setSelectedImage(lesson.imageUrl || `${basePath}/generated_turtle.png`);
-    setIsGameOpen(true);
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Navigation Bar */}
       <header className="no-print sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
-              <Sparkles className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 text-white flex items-center justify-center shadow-md shadow-indigo-500/20">
+              <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <span className="text-xl font-black tracking-tight text-slate-900">
                 Trace<span className="text-indigo-600">Play</span>
               </span>
-              <span className="ml-2 text-xs font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
+              <span className="ml-2 text-xs font-semibold px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full">
                 Studio
               </span>
             </div>
@@ -254,20 +521,29 @@ export default function Home() {
 
           <nav className="hidden md:flex items-center gap-2 text-sm font-semibold text-slate-600">
             <button
-              onClick={() => setIsGameOpen(true)}
-              className="px-3.5 py-2 rounded-lg hover:text-indigo-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
+              onClick={() => {
+                setIsGameOpen(true);
+                updateUrlParams({ game: '1' });
+              }}
+              className="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
             >
               <Gamepad2 className="w-4 h-4 text-indigo-500" /> Tracing Game
             </button>
             <button
-              onClick={() => setIsCurriculumOpen(true)}
-              className="px-3.5 py-2 rounded-lg hover:text-indigo-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
+              onClick={() => {
+                setIsCurriculumOpen(true);
+                updateUrlParams({ curriculum: '1' });
+              }}
+              className="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
             >
               <BookOpen className="w-4 h-4 text-violet-500" /> Curriculum
             </button>
             <button
-              onClick={() => setIsClassroomOpen(true)}
-              className="px-3.5 py-2 rounded-lg hover:text-indigo-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
+              onClick={() => {
+                setIsClassroomOpen(true);
+                updateUrlParams({ classroom: '1' });
+              }}
+              className="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
             >
               <Users className="w-4 h-4 text-emerald-500" /> Live Classroom
             </button>
@@ -276,11 +552,14 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              {opencvReady ? 'OpenCV.js Engine Ready' : 'Loading Vision Engine...'}
+              {opencvReady ? 'Vision Engine Active' : 'Canvas Engine Ready'}
             </div>
 
             <button
-              onClick={() => setIsGameOpen(true)}
+              onClick={() => {
+                setIsGameOpen(true);
+                updateUrlParams({ game: '1' });
+              }}
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-xl transition-all shadow-md shadow-indigo-600/20 flex items-center gap-1.5"
             >
               <Play className="w-4 h-4 fill-white" /> Play Game
@@ -291,7 +570,7 @@ export default function Home() {
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 no-print">
-        {/* Hero Banner */}
+        {/* Hero Banner with Instant Conversion Buttons */}
         <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-violet-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
           <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-violet-500/20 to-transparent pointer-events-none" />
           <div className="relative z-10 max-w-2xl">
@@ -307,18 +586,37 @@ export default function Home() {
 
             <div className="mt-6 flex flex-wrap gap-3">
               <button
-                onClick={() => handleProcessImage('coloring')}
-                disabled={!opencvReady || isProcessing}
-                className="bg-white text-indigo-900 hover:bg-indigo-50 font-bold px-4 py-2.5 rounded-xl text-sm transition-all shadow-md flex items-center gap-2"
+                onClick={() => handleModeSelect('coloring')}
+                disabled={isProcessing}
+                className={`font-bold px-4 py-2.5 rounded-xl text-sm transition-all shadow-md flex items-center gap-2 ${
+                  conversionMode === 'coloring'
+                    ? 'bg-white text-indigo-900 ring-2 ring-indigo-400 shadow-lg'
+                    : 'bg-indigo-800/80 hover:bg-indigo-700 text-white border border-indigo-600'
+                }`}
               >
                 <Layers className="w-4 h-4 text-indigo-600" /> Convert to Coloring Page
               </button>
+
               <button
-                onClick={() => handleProcessImage('dots')}
-                disabled={!opencvReady || isProcessing}
-                className="bg-indigo-700/80 hover:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all border border-indigo-500/40 flex items-center gap-2"
+                onClick={() => handleModeSelect('dots')}
+                disabled={isProcessing}
+                className={`font-bold px-4 py-2.5 rounded-xl text-sm transition-all flex items-center gap-2 ${
+                  conversionMode === 'dots'
+                    ? 'bg-white text-indigo-900 ring-2 ring-indigo-400 shadow-lg'
+                    : 'bg-indigo-800/80 hover:bg-indigo-700 text-white border border-indigo-600'
+                }`}
               >
                 <Sparkles className="w-4 h-4 text-indigo-300" /> Connect the Dots
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsGameOpen(true);
+                  updateUrlParams({ game: '1' });
+                }}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all shadow-md shadow-emerald-600/30 flex items-center gap-2"
+              >
+                <Play className="w-4 h-4 fill-white" /> Trace in Interactive Game
               </button>
             </div>
           </div>
@@ -327,7 +625,7 @@ export default function Home() {
         {/* Activity Studio Workspace */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Controls & Options Panel */}
-          <div className="lg:col-span-4 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
+          <div className="lg:col-span-4 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6">
             <div>
               <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
                 <Sliders className="w-5 h-5 text-indigo-600" /> Studio Controls
@@ -335,43 +633,52 @@ export default function Home() {
               <p className="text-xs text-slate-500 mt-1">Configure your image and conversion preferences</p>
             </div>
 
-            {/* Image Sources */}
+            {/* Source Image Selector */}
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                 Source Image
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => {
-                    setSelectedImage(`${basePath}/generated_turtle.png`);
-                    setProcessedImage(false);
-                  }}
-                  className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-colors flex items-center justify-center gap-1.5"
-                >
-                  🐢 Turtle
-                </button>
-
-                <button
-                  onClick={() => {
-                    setSelectedImage(`${basePath}/cat_sample.png`);
-                    setProcessedImage(false);
-                  }}
-                  className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-colors flex items-center justify-center gap-1.5"
+                  onClick={() => handleSelectPredefinedImage('cat_sample', 'cat_sample.png')}
+                  className={`px-3 py-2.5 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center gap-1.5 ${
+                    activeImageKey === 'cat_sample'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold shadow-sm'
+                      : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                  }`}
                 >
                   🐱 Cute Cat
                 </button>
 
                 <button
-                  onClick={() => {
-                    setSelectedImage(`${basePath}/cat_playful.png`);
-                    setProcessedImage(false);
-                  }}
-                  className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-colors flex items-center justify-center gap-1.5"
+                  onClick={() => handleSelectPredefinedImage('cat_playful', 'cat_playful.png')}
+                  className={`px-3 py-2.5 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center gap-1.5 ${
+                    activeImageKey === 'cat_playful'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold shadow-sm'
+                      : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                  }`}
                 >
                   🧶 Playful Kitten
                 </button>
 
-                <label className="px-3 py-2 text-xs font-semibold rounded-lg border border-indigo-200 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100/50 cursor-pointer transition-colors flex items-center justify-center gap-1.5">
+                <button
+                  onClick={() => handleSelectPredefinedImage('turtle', 'generated_turtle.png')}
+                  className={`px-3 py-2.5 text-xs font-semibold rounded-xl border transition-all flex items-center justify-center gap-1.5 ${
+                    activeImageKey === 'turtle'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold shadow-sm'
+                      : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                  }`}
+                >
+                  🐢 Sea Turtle
+                </button>
+
+                <label
+                  className={`px-3 py-2.5 text-xs font-semibold rounded-xl border cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+                    activeImageKey === 'custom'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold shadow-sm'
+                      : 'border-indigo-200 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100/50'
+                  }`}
+                >
                   <Upload className="w-3.5 h-3.5" /> Upload Photo
                   <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                 </label>
@@ -385,10 +692,7 @@ export default function Home() {
               </label>
               <div className="grid grid-cols-3 gap-2">
                 <button
-                  onClick={() => {
-                    setConversionMode('coloring');
-                    handleProcessImage('coloring');
-                  }}
+                  onClick={() => handleModeSelect('coloring')}
                   className={`p-2.5 rounded-xl text-xs font-bold transition-all text-center border ${
                     conversionMode === 'coloring'
                       ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
@@ -398,10 +702,7 @@ export default function Home() {
                   🖍️ Coloring
                 </button>
                 <button
-                  onClick={() => {
-                    setConversionMode('dots');
-                    handleProcessImage('dots');
-                  }}
+                  onClick={() => handleModeSelect('dots')}
                   className={`p-2.5 rounded-xl text-xs font-bold transition-all text-center border ${
                     conversionMode === 'dots'
                       ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
@@ -411,10 +712,7 @@ export default function Home() {
                   🔢 Dots
                 </button>
                 <button
-                  onClick={() => {
-                    setConversionMode('tracing');
-                    handleProcessImage('tracing');
-                  }}
+                  onClick={() => handleModeSelect('tracing')}
                   className={`p-2.5 rounded-xl text-xs font-bold transition-all text-center border ${
                     conversionMode === 'tracing'
                       ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
@@ -431,14 +729,14 @@ export default function Home() {
               <div>
                 <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
                   <span>Threshold Sensitivity</span>
-                  <span className="text-indigo-600">{threshold}</span>
+                  <span className="text-indigo-600 font-mono">{threshold}</span>
                 </div>
                 <input
                   type="range"
                   min="40"
                   max="220"
                   value={threshold}
-                  onChange={(e) => setThreshold(Number(e.target.value))}
+                  onChange={(e) => handleThresholdChange(Number(e.target.value))}
                   className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                 />
               </div>
@@ -447,14 +745,14 @@ export default function Home() {
                 <div>
                   <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
                     <span>Dot Spacing Frequency</span>
-                    <span className="text-indigo-600">{dotSpacing}px</span>
+                    <span className="text-indigo-600 font-mono">{dotSpacing}px</span>
                   </div>
                   <input
                     type="range"
-                    min="8"
-                    max="40"
+                    min="10"
+                    max="45"
                     value={dotSpacing}
-                    onChange={(e) => setDotSpacing(Number(e.target.value))}
+                    onChange={(e) => handleDotSpacingChange(Number(e.target.value))}
                     className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                   />
                 </div>
@@ -464,24 +762,24 @@ export default function Home() {
                 <div>
                   <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
                     <span>Outline Line Width</span>
-                    <span className="text-indigo-600">{lineThickness}px</span>
+                    <span className="text-indigo-600 font-mono">{lineThickness}px</span>
                   </div>
                   <input
                     type="range"
                     min="1"
                     max="5"
                     value={lineThickness}
-                    onChange={(e) => setLineThickness(Number(e.target.value))}
+                    onChange={(e) => handleLineThicknessChange(Number(e.target.value))}
                     className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                   />
                 </div>
               )}
             </div>
 
-            {/* Generate Action Button */}
+            {/* Re-apply Action Button */}
             <button
-              onClick={() => handleProcessImage(conversionMode)}
-              disabled={!opencvReady || isProcessing}
+              onClick={() => handleProcessImage(conversionMode, selectedImage)}
+              disabled={isProcessing}
               className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold py-3 rounded-xl transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
@@ -491,29 +789,38 @@ export default function Home() {
 
           {/* Interactive Workspace Viewport */}
           <div className="lg:col-span-8 space-y-6">
-            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-lg font-black text-slate-900">Worksheet Preview</h2>
-                  <p className="text-xs text-slate-500">Live vector outline generated by OpenCV.js</p>
+                  <p className="text-xs text-slate-500">
+                    {conversionMode === 'coloring'
+                      ? 'Clean coloring book outline'
+                      : conversionMode === 'dots'
+                      ? 'Sequential numbered connect-the-dots'
+                      : 'Guided tracing lines'}
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setIsGameOpen(true)}
-                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1.5 border border-indigo-200"
+                    onClick={() => {
+                      setIsGameOpen(true);
+                      updateUrlParams({ game: '1' });
+                    }}
+                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-3.5 py-1.5 rounded-xl text-xs transition-colors flex items-center gap-1.5 border border-indigo-200"
                   >
                     <Play className="w-3.5 h-3.5 fill-indigo-700" /> Trace in Game
                   </button>
                   <button
                     onClick={handlePrintWorksheet}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1.5"
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3.5 py-1.5 rounded-xl text-xs transition-colors flex items-center gap-1.5"
                   >
                     <Printer className="w-3.5 h-3.5" /> Print
                   </button>
                   <button
                     onClick={handleDownloadPNG}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1.5"
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3.5 py-1.5 rounded-xl text-xs transition-colors flex items-center gap-1.5"
                   >
                     <Download className="w-3.5 h-3.5" /> Save
                   </button>
@@ -523,21 +830,25 @@ export default function Home() {
               {/* Viewport Comparison */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
                 {/* Original Photo Preview */}
-                <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 text-center">
+                <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50 text-center">
                   <span className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-wider">
                     Original Source
                   </span>
-                  <div className="relative aspect-square max-h-[360px] mx-auto rounded-lg overflow-hidden bg-slate-200 flex items-center justify-center">
-                    <img
-                      src={selectedImage || `${basePath}/generated_turtle.png`}
-                      alt="Source for conversion"
-                      className="object-contain w-full h-full"
-                    />
+                  <div className="relative aspect-square max-h-[360px] mx-auto rounded-xl overflow-hidden bg-slate-200 flex items-center justify-center">
+                    {selectedImage ? (
+                      <img
+                        src={selectedImage}
+                        alt="Source for conversion"
+                        className="object-contain w-full h-full"
+                      />
+                    ) : (
+                      <span className="text-xs text-slate-400">No image loaded</span>
+                    )}
                   </div>
                 </div>
 
                 {/* Processed Vector Activity Canvas */}
-                <div className="border-2 border-indigo-100 rounded-xl p-3 bg-white text-center shadow-inner">
+                <div className="border-2 border-indigo-100 rounded-2xl p-3 bg-white text-center shadow-inner">
                   <span className="text-xs font-bold text-indigo-600 mb-2 block uppercase tracking-wider">
                     {conversionMode === 'coloring'
                       ? 'Coloring Outline'
@@ -545,29 +856,32 @@ export default function Home() {
                       ? 'Connect-The-Dots Activity'
                       : 'Tracing Guide'}
                   </span>
-                  <div className="relative aspect-square max-h-[360px] mx-auto rounded-lg overflow-hidden bg-white border border-slate-100 flex items-center justify-center">
+                  <div className="relative aspect-square max-h-[360px] mx-auto rounded-xl overflow-hidden bg-white border border-slate-100 flex items-center justify-center">
                     <canvas ref={canvasRef} className="object-contain w-full h-full" />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Quick Curriculum / Storybook Explorer Banner */}
+            {/* Quick Curriculum Explorer Banner */}
             <div className="bg-slate-100/70 border border-slate-200 rounded-2xl p-5 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-violet-600 text-white flex items-center justify-center shadow-md shadow-violet-600/20">
                   <BookOpen className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Explore Curriculum & Skill Tree</h3>
+                  <h3 className="font-bold text-slate-900 text-sm">Educational Curriculum & Skill Modules</h3>
                   <p className="text-xs text-slate-500">
-                    Over 12+ structured tracing lessons with beginner to advanced skill dependencies.
+                    Structured lessons featuring cats, turtles, and nature outlines with progressive difficulty.
                   </p>
                 </div>
               </div>
 
               <button
-                onClick={() => setIsCurriculumOpen(true)}
+                onClick={() => {
+                  setIsCurriculumOpen(true);
+                  updateUrlParams({ curriculum: '1' });
+                }}
                 className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-xs font-bold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
               >
                 Browse Lessons <Eye className="w-3.5 h-3.5" />
@@ -609,19 +923,33 @@ export default function Home() {
       {/* Modals */}
       {isCurriculumOpen && (
         <CurriculumView
-          onClose={() => setIsCurriculumOpen(false)}
+          onClose={() => {
+            setIsCurriculumOpen(false);
+            updateUrlParams({ curriculum: null });
+          }}
           onStartLesson={handleStartLessonFromCurriculum}
+          activeLessonId={activeLessonId}
         />
       )}
 
       <TracingGameModal
         isOpen={isGameOpen}
-        onClose={() => setIsGameOpen(false)}
+        onClose={() => {
+          setIsGameOpen(false);
+          updateUrlParams({ game: null });
+        }}
         lessonTitle={activeLessonTitle}
+        imageUrl={selectedImage}
         shapes={extractedShapes.length > 0 ? extractedShapes : undefined}
       />
 
-      <ClassroomModal isOpen={isClassroomOpen} onClose={() => setIsClassroomOpen(false)} />
+      <ClassroomModal
+        isOpen={isClassroomOpen}
+        onClose={() => {
+          setIsClassroomOpen(false);
+          updateUrlParams({ classroom: null });
+        }}
+      />
     </div>
   );
 }
