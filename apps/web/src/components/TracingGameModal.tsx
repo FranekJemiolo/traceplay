@@ -1,17 +1,43 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import confetti from 'canvas-confetti';
-import { X, Volume2, VolumeX, Sparkles, Award, RotateCcw, CheckCircle2, Trophy, HelpCircle } from 'lucide-react';
+import {
+  X,
+  Volume2,
+  VolumeX,
+  Sparkles,
+  Award,
+  RotateCcw,
+  CheckCircle2,
+  Trophy,
+  AlertTriangle,
+  Zap,
+  ChevronRight,
+  ShieldAlert,
+} from 'lucide-react';
 
 export interface Point {
   x: number;
   y: number;
 }
 
+export interface LineSegment {
+  from: Point;
+  to: Point;
+}
+
 export interface TracingShape {
   label: string;
   points: Point[];
+}
+
+export interface TracingStateNotification {
+  mode: 'train' | 'studio';
+  difficulty: 'easy' | 'hard';
+  shapeIndex: number;
+  score: number;
+  stars: number;
 }
 
 interface TracingGameModalProps {
@@ -21,9 +47,15 @@ interface TracingGameModalProps {
   imageUrl?: string | null;
   shapes?: TracingShape[];
   onLessonComplete?: (lessonTitle: string) => void;
+  mode?: 'train' | 'studio';
+  initialDifficulty?: 'easy' | 'hard';
+  initialShapeIndex?: number;
+  initialScore?: number;
+  initialStars?: number;
+  onStateChange?: (state: TracingStateNotification) => void;
 }
 
-// Built-in Web Audio Sound FX with melodic scale
+// Built-in Web Audio Sound FX with melodic scale and feedback chimes
 class SoundFX {
   private ctx: AudioContext | null = null;
   public enabled: boolean = true;
@@ -62,8 +94,8 @@ class SoundFX {
     try {
       const ctx = this.getContext();
       if (!ctx) return;
-      // Pentatonic scale notes (C4, D4, E4, G4, A4, C5, D5, E5, G5, A5, C6)
-      const scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+      // Melodic pentatonic scale notes (C4, D4, E4, G4, A4, C5, D5, E5, G5, A5, C6)
+      const scale = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
       const noteIdx = Math.min(scale.length - 1, Math.floor((dotIndex / Math.max(1, totalDots)) * scale.length));
       const freq = scale[noteIdx] || 440;
 
@@ -71,12 +103,31 @@ class SoundFX {
       const gain = ctx.createGain();
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(freq, ctx.currentTime);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
-      osc.stop(ctx.currentTime + 0.2);
+      osc.stop(ctx.currentTime + 0.22);
+    } catch {}
+  }
+
+  playResetBuzz() {
+    if (!this.enabled) return;
+    try {
+      const ctx = this.getContext();
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(180, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(75, ctx.currentTime + 0.25);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.25);
     } catch {}
   }
 
@@ -91,7 +142,7 @@ class SoundFX {
         const gain = ctx.createGain();
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.09);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime + idx * 0.09);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime + idx * 0.09);
         gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + idx * 0.09 + 0.35);
         osc.connect(gain);
         gain.connect(ctx.destination);
@@ -104,10 +155,101 @@ class SoundFX {
 
 const sfx = new SoundFX();
 
-// Fallback high-quality animal outlines if no contours are extracted
-const DEFAULT_CAT_SHAPES: TracingShape[] = [
+// Progressive geometric shapes designed specifically for Training mode (Easy shapes to advance forward)
+export const TRAINING_SHAPES: TracingShape[] = [
   {
-    label: 'Cat Head & Ears',
+    label: 'Level 1: Circle',
+    points: [
+      { x: 430, y: 240 },
+      { x: 392, y: 332 },
+      { x: 300, y: 370 },
+      { x: 208, y: 332 },
+      { x: 170, y: 240 },
+      { x: 208, y: 148 },
+      { x: 300, y: 110 },
+      { x: 392, y: 148 },
+    ],
+  },
+  {
+    label: 'Level 2: Triangle',
+    points: [
+      { x: 300, y: 110 },
+      { x: 370, y: 230 },
+      { x: 440, y: 350 },
+      { x: 300, y: 350 },
+      { x: 160, y: 350 },
+      { x: 230, y: 230 },
+    ],
+  },
+  {
+    label: 'Level 3: Square',
+    points: [
+      { x: 180, y: 120 },
+      { x: 300, y: 120 },
+      { x: 420, y: 120 },
+      { x: 420, y: 240 },
+      { x: 420, y: 360 },
+      { x: 300, y: 360 },
+      { x: 180, y: 360 },
+      { x: 180, y: 240 },
+    ],
+  },
+  {
+    label: 'Level 4: Diamond',
+    points: [
+      { x: 300, y: 110 },
+      { x: 370, y: 175 },
+      { x: 440, y: 240 },
+      { x: 370, y: 305 },
+      { x: 300, y: 370 },
+      { x: 230, y: 305 },
+      { x: 160, y: 240 },
+      { x: 230, y: 175 },
+    ],
+  },
+  {
+    label: 'Level 5: Five-Point Star',
+    points: [
+      { x: 300, y: 100 },
+      { x: 333, y: 190 },
+      { x: 433, y: 196 },
+      { x: 355, y: 255 },
+      { x: 382, y: 350 },
+      { x: 300, y: 295 },
+      { x: 218, y: 350 },
+      { x: 245, y: 255 },
+      { x: 167, y: 196 },
+      { x: 267, y: 190 },
+    ],
+  },
+  {
+    label: 'Level 6: Hexagon',
+    points: [
+      { x: 300, y: 105 },
+      { x: 415, y: 172 },
+      { x: 415, y: 307 },
+      { x: 300, y: 375 },
+      { x: 185, y: 307 },
+      { x: 185, y: 172 },
+    ],
+  },
+  {
+    label: 'Level 7: Sweet Heart',
+    points: [
+      { x: 300, y: 170 },
+      { x: 340, y: 130 },
+      { x: 390, y: 140 },
+      { x: 410, y: 190 },
+      { x: 380, y: 250 },
+      { x: 300, y: 340 },
+      { x: 220, y: 250 },
+      { x: 190, y: 190 },
+      { x: 210, y: 140 },
+      { x: 260, y: 130 },
+    ],
+  },
+  {
+    label: 'Level 8: Cat Face Contour',
     points: [
       { x: 300, y: 120 },
       { x: 370, y: 135 },
@@ -124,7 +266,7 @@ const DEFAULT_CAT_SHAPES: TracingShape[] = [
     ],
   },
   {
-    label: 'Cat Body & Paws',
+    label: 'Level 9: Playful Kitten Silhouette',
     points: [
       { x: 300, y: 340 },
       { x: 380, y: 360 },
@@ -138,6 +280,25 @@ const DEFAULT_CAT_SHAPES: TracingShape[] = [
   },
 ];
 
+// Fallback high-quality animal outlines if no contours are extracted
+const DEFAULT_CAT_SHAPES: TracingShape[] = [
+  TRAINING_SHAPES[7],
+  TRAINING_SHAPES[8],
+];
+
+// Math helper: distance from point P to line segment AB
+function pointToSegmentDistance(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const l2 = dx * dx + dy * dy;
+  if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  const projX = a.x + t * dx;
+  const projY = a.y + t * dy;
+  return Math.hypot(p.x - projX, p.y - projY);
+}
+
 export default function TracingGameModal({
   isOpen,
   onClose,
@@ -145,20 +306,66 @@ export default function TracingGameModal({
   imageUrl,
   shapes,
   onLessonComplete,
+  mode = 'studio',
+  initialDifficulty = 'easy',
+  initialShapeIndex = 0,
+  initialScore = 0,
+  initialStars = 0,
+  onStateChange,
 }: TracingGameModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [currentShapeIndex, setCurrentShapeIndex] = useState(0);
-  const [score, setScore] = useState(0);
-  const [stars, setStars] = useState(0);
+
+  const [difficulty, setDifficulty] = useState<'easy' | 'hard'>(initialDifficulty);
+  const [currentShapeIndex, setCurrentShapeIndex] = useState(initialShapeIndex);
+  const [score, setScore] = useState(initialScore);
+  const [stars, setStars] = useState(initialStars);
+
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentStroke, setCurrentStroke] = useState<Point[]>([]);
   const [visitedDots, setVisitedDots] = useState<Set<number>>(new Set());
+  const [visitedOrder, setVisitedOrder] = useState<number[]>([]);
+  const [completedSegments, setCompletedSegments] = useState<LineSegment[]>([]);
+
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [lessonCompleted, setLessonCompleted] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState('Connect all the glowing numbered dots!');
+  const [feedbackMessage, setFeedbackMessage] = useState('Connect all the glowing numbered dots in order!');
   const [bgImageElement, setBgImageElement] = useState<HTMLImageElement | null>(null);
+  const [isOffTrackAlert, setIsOffTrackAlert] = useState(false);
 
-  // Load background image
+  // Sync props when opening / changing external initial states
+  useEffect(() => {
+    if (initialDifficulty) setDifficulty(initialDifficulty);
+  }, [initialDifficulty]);
+
+  useEffect(() => {
+    if (typeof initialShapeIndex === 'number') setCurrentShapeIndex(initialShapeIndex);
+  }, [initialShapeIndex]);
+
+  useEffect(() => {
+    if (typeof initialScore === 'number') setScore(initialScore);
+  }, [initialScore]);
+
+  useEffect(() => {
+    if (typeof initialStars === 'number') setStars(initialStars);
+  }, [initialStars]);
+
+  // Notify parent of state changes (for URL hash persistence)
+  const notifyStateChange = useCallback(
+    (newIdx = currentShapeIndex, newDiff = difficulty, newScore = score, newStars = stars) => {
+      if (onStateChange) {
+        onStateChange({
+          mode,
+          difficulty: newDiff,
+          shapeIndex: newIdx,
+          score: newScore,
+          stars: newStars,
+        });
+      }
+    },
+    [mode, difficulty, currentShapeIndex, score, stars, onStateChange]
+  );
+
+  // Load background image (and retain it across shapes/replays!)
   useEffect(() => {
     if (!imageUrl) {
       setBgImageElement(null);
@@ -170,18 +377,27 @@ export default function TracingGameModal({
     img.onload = () => setBgImageElement(img);
   }, [imageUrl]);
 
+  // Determine active shape pool: Training mode uses easy progressive shapes
+  const activeShapePool = useMemo<TracingShape[]>(() => {
+    if (mode === 'train') {
+      return TRAINING_SHAPES;
+    }
+    return shapes && shapes.length > 0 ? shapes : DEFAULT_CAT_SHAPES;
+  }, [mode, shapes]);
+
   // Normalize shape coordinates to fit comfortably in 600x480 canvas
   const normalizedShapes = useMemo<TracingShape[]>(() => {
-    const rawShapes = shapes && shapes.length > 0 ? shapes : DEFAULT_CAT_SHAPES;
     const canvasW = 600;
     const canvasH = 480;
     const margin = 50;
 
-    return rawShapes.map((shape) => {
+    return activeShapePool.map((shape) => {
       if (shape.points.length === 0) return shape;
 
-      let minX = Infinity, maxX = -Infinity;
-      let minY = Infinity, maxY = -Infinity;
+      let minX = Infinity,
+        maxX = -Infinity;
+      let minY = Infinity,
+        maxY = -Infinity;
 
       for (const p of shape.points) {
         if (p.x < minX) minX = p.x;
@@ -193,7 +409,6 @@ export default function TracingGameModal({
       const shapeW = Math.max(1, maxX - minX);
       const shapeH = Math.max(1, maxY - minY);
 
-      // If points are already normalized within [0, 600] and [0, 480], preserve or fit nicely
       const targetW = canvasW - margin * 2;
       const targetH = canvasH - margin * 2;
       const scale = Math.min(targetW / shapeW, targetH / shapeH, 1.4);
@@ -211,7 +426,7 @@ export default function TracingGameModal({
         points: fittedPoints,
       };
     });
-  }, [shapes]);
+  }, [activeShapePool]);
 
   const currentShape = normalizedShapes[currentShapeIndex] || normalizedShapes[0];
 
@@ -219,18 +434,34 @@ export default function TracingGameModal({
     sfx.enabled = soundEnabled;
   }, [soundEnabled]);
 
-  // Reset stroke and visited dots on shape change
+  // Reset stroke, lines, and visited dots on shape or difficulty change
   useEffect(() => {
     setCurrentStroke([]);
     setVisitedDots(new Set());
-    setFeedbackMessage('Connect each numbered dot in sequence!');
-  }, [currentShapeIndex, normalizedShapes]);
+    setVisitedOrder([]);
+    setCompletedSegments([]);
+    setFeedbackMessage(
+      difficulty === 'hard'
+        ? 'Hard Mode: Start at Dot 1 and follow exact order. Stay on the line!'
+        : 'Easy Mode: Connect dots in order or any path. Wide touch radius!'
+    );
+  }, [currentShapeIndex, normalizedShapes, difficulty]);
 
-  // Redraw canvas
+  // Redraw canvas on state changes
   useEffect(() => {
     if (!isOpen) return;
     drawCanvas();
-  }, [isOpen, currentShapeIndex, currentStroke, visitedDots, normalizedShapes, bgImageElement]);
+  }, [
+    isOpen,
+    currentShapeIndex,
+    currentStroke,
+    visitedDots,
+    visitedOrder,
+    completedSegments,
+    normalizedShapes,
+    bgImageElement,
+    difficulty,
+  ]);
 
   const drawCanvas = () => {
     const canvas = canvasRef.current;
@@ -257,11 +488,10 @@ export default function TracingGameModal({
       }
     }
 
-    // Draw the actual selected image in the background with tasteful opacity
+    // Draw the actual selected image in the background with tasteful opacity (always preserved!)
     if (bgImageElement && bgImageElement.complete && bgImageElement.naturalWidth > 0) {
       ctx.save();
       ctx.globalAlpha = 0.28;
-      // Draw image centered maintaining aspect ratio
       const imgW = bgImageElement.naturalWidth;
       const imgH = bgImageElement.naturalHeight;
       const scale = Math.min((width - 80) / imgW, (height - 80) / imgH);
@@ -276,11 +506,11 @@ export default function TracingGameModal({
 
     if (!currentShape || currentShape.points.length < 2) return;
 
-    // Draw guide outline connecting the dots
+    // 1. Draw guide outline connecting the dots (dashed path)
     ctx.save();
     ctx.setLineDash([6, 6]);
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = difficulty === 'hard' ? '#273449' : '#334155';
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     currentShape.points.forEach((pt, i) => {
       if (i === 0) ctx.moveTo(pt.x, pt.y);
@@ -290,15 +520,45 @@ export default function TracingGameModal({
     ctx.stroke();
     ctx.restore();
 
-    // Draw user stroke with luminous neon glow
-    if (currentStroke.length > 1) {
+    // 2. KEEP THE LINES: Permanently draw all completed segments with brilliant luminous neon glow
+    if (completedSegments.length > 0) {
       ctx.save();
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 7;
+      // Outer neon aura
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 10;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.shadowColor = '#0284c7';
-      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      completedSegments.forEach((seg) => {
+        ctx.moveTo(seg.from.x, seg.from.y);
+        ctx.lineTo(seg.to.x, seg.to.y);
+      });
+      ctx.stroke();
+
+      // Sharp luminous core
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 5;
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      completedSegments.forEach((seg) => {
+        ctx.moveTo(seg.from.x, seg.from.y);
+        ctx.lineTo(seg.to.x, seg.to.y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 3. Draw active stroke while drawing
+    if (currentStroke.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = '#67e8f9';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = '#06b6d4';
+      ctx.shadowBlur = 8;
 
       ctx.beginPath();
       currentStroke.forEach((pt, i) => {
@@ -309,9 +569,14 @@ export default function TracingGameModal({
       ctx.restore();
     }
 
-    // Draw guide dots with dynamic visited state
+    // Determine the next expected target dot index
+    const nextExpectedIdx =
+      visitedOrder.length < currentShape.points.length ? visitedOrder.length : null;
+
+    // 4. Draw numbered dots with clear active, visited, and unvisited states
     currentShape.points.forEach((pt, i) => {
       const isVisited = visitedDots.has(i);
+      const isNextTarget = i === nextExpectedIdx;
 
       if (isVisited) {
         // Connected Dot (Emerald Glowing Aura)
@@ -335,6 +600,31 @@ export default function TracingGameModal({
         ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(`✓ ${i + 1}`, pt.x, pt.y - 14);
+      } else if (isNextTarget) {
+        // NEXT TARGET DOT (Pulsating amber/cyan radar guidance)
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 18, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+        ctx.fill();
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 9, 0, Math.PI * 2);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+
+        // Target badge
+        ctx.fillStyle = '#fef08a';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(i === 0 ? `START ${i + 1}` : `NEXT ${i + 1}`, pt.x, pt.y - 16);
       } else {
         // Unvisited Dot (Indigo Target)
         ctx.beginPath();
@@ -361,7 +651,9 @@ export default function TracingGameModal({
     });
   };
 
-  const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>): Point => {
+  const getCanvasCoords = (
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+  ): Point => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
@@ -385,37 +677,152 @@ export default function TracingGameModal({
     };
   };
 
-  const checkDotProximity = (pt: Point) => {
-    if (!currentShape) return;
-    const hitRadius = 26; // 26px proximity radius
-
-    currentShape.points.forEach((dot, idx) => {
-      const dist = Math.hypot(pt.x - dot.x, pt.y - dot.y);
-      if (dist <= hitRadius && !visitedDots.has(idx)) {
-        setVisitedDots((prev) => {
-          const next = new Set(prev);
-          next.add(idx);
-          return next;
-        });
-        sfx.playDotChime(idx, currentShape.points.length);
-      }
-    });
+  // Reset to beginning if user wanders too far off track
+  const handleResetToStart = (reasonMsg?: string) => {
+    setVisitedDots(new Set());
+    setVisitedOrder([]);
+    setCompletedSegments([]);
+    setCurrentStroke([]);
+    setIsDrawing(false);
+    setIsOffTrackAlert(true);
+    sfx.playResetBuzz();
+    setFeedbackMessage(
+      reasonMsg ||
+        (difficulty === 'hard'
+          ? '⚠️ Straying too far off path! Resetting to Dot 1.'
+          : '⚠️ Too far from dots! Resetting to start.')
+    );
+    setTimeout(() => setIsOffTrackAlert(false), 1400);
   };
 
-  const handlePointerDown = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  // Check proximity to dots respecting difficulty and order
+  const checkDotProximity = (pt: Point) => {
+    if (!currentShape || currentShape.points.length === 0) return;
+
+    // Difficulty settings: hit radius and ordering requirements
+    const hitRadius = difficulty === 'hard' ? 22 : 42;
+
+    if (difficulty === 'hard') {
+      // STRICT SEQUENTIAL ORDER (1 -> 2 -> 3 -> ...)
+      const nextExpectedIdx = visitedOrder.length;
+      if (nextExpectedIdx >= currentShape.points.length) return;
+
+      const targetDot = currentShape.points[nextExpectedIdx];
+      const dist = Math.hypot(pt.x - targetDot.x, pt.y - targetDot.y);
+
+      if (dist <= hitRadius) {
+        // Connected the expected dot!
+        if (visitedOrder.length > 0) {
+          const lastIdx = visitedOrder[visitedOrder.length - 1];
+          const lastDot = currentShape.points[lastIdx];
+          setCompletedSegments((prev) => [...prev, { from: lastDot, to: targetDot }]);
+        }
+
+        const newOrder = [...visitedOrder, nextExpectedIdx];
+        setVisitedOrder(newOrder);
+        setVisitedDots((prev) => new Set([...prev, nextExpectedIdx]));
+        setCurrentStroke([targetDot]); // anchor stroke to connected dot
+        sfx.playDotChime(nextExpectedIdx, currentShape.points.length);
+        setFeedbackMessage(
+          newOrder.length === currentShape.points.length
+            ? '🎉 Awesome! All dots connected in perfect order!'
+            : `✓ Dot ${nextExpectedIdx + 1} connected! Trace to Dot ${nextExpectedIdx + 2}`
+        );
+      }
+    } else {
+      // EASY MODE: Lenient ordering and generous hit radius
+      currentShape.points.forEach((dot, idx) => {
+        const dist = Math.hypot(pt.x - dot.x, pt.y - dot.y);
+        if (dist <= hitRadius && !visitedDots.has(idx)) {
+          if (visitedOrder.length > 0) {
+            const lastIdx = visitedOrder[visitedOrder.length - 1];
+            const lastDot = currentShape.points[lastIdx];
+            setCompletedSegments((prev) => [...prev, { from: lastDot, to: dot }]);
+          }
+
+          const newOrder = [...visitedOrder, idx];
+          setVisitedOrder(newOrder);
+          setVisitedDots((prev) => new Set([...prev, idx]));
+          setCurrentStroke([dot]);
+          sfx.playDotChime(idx, currentShape.points.length);
+          setFeedbackMessage(`✓ Connected Dot ${idx + 1}! Keep drawing!`);
+        }
+      });
+    }
+  };
+
+  const handlePointerDown = (
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+  ) => {
     e.preventDefault();
+    if (!currentShape) return;
     const pt = getCanvasCoords(e);
     setIsDrawing(true);
     setCurrentStroke([pt]);
-    checkDotProximity(pt);
+
+    // In Hard mode, drawing must initiate at or near Dot 1 if no dots visited yet
+    if (difficulty === 'hard' && visitedOrder.length === 0) {
+      const dot0 = currentShape.points[0];
+      const dist = Math.hypot(pt.x - dot0.x, pt.y - dot0.y);
+      if (dist <= 30) {
+        checkDotProximity(pt);
+      } else {
+        setFeedbackMessage('👉 Start by touching Dot 1!');
+      }
+    } else {
+      checkDotProximity(pt);
+    }
     sfx.playStroke();
   };
 
-  const handlePointerMove = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+  const handlePointerMove = (
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+  ) => {
     if (!isDrawing) return;
     e.preventDefault();
+    if (!currentShape || currentShape.points.length === 0) return;
+
     const pt = getCanvasCoords(e);
     setCurrentStroke((prev) => [...prev, pt]);
+
+    // OFF-TRACK DEVIATION CHECK:
+    // If you stray too far from the expected path, redo from beginning!
+    const maxTolerance = difficulty === 'hard' ? 38 : 85;
+
+    if (difficulty === 'hard') {
+      const lastIdx = visitedOrder.length > 0 ? visitedOrder[visitedOrder.length - 1] : null;
+      const nextIdx = visitedOrder.length < currentShape.points.length ? visitedOrder.length : null;
+
+      if (lastIdx !== null && nextIdx !== null) {
+        const segA = currentShape.points[lastIdx];
+        const segB = currentShape.points[nextIdx];
+        const devDist = pointToSegmentDistance(pt, segA, segB);
+
+        if (devDist > maxTolerance) {
+          handleResetToStart('⚠️ Wandered too far off the line! Redo from Dot 1.');
+          return;
+        }
+      }
+    } else {
+      // In Easy mode, if drawing wanders excessively far from all active points (>85px)
+      if (visitedOrder.length > 0 && visitedOrder.length < currentShape.points.length) {
+        const lastIdx = visitedOrder[visitedOrder.length - 1];
+        const segA = currentShape.points[lastIdx];
+        // Nearest unvisited dot
+        let minDist = Infinity;
+        currentShape.points.forEach((dot, idx) => {
+          if (!visitedDots.has(idx)) {
+            const d = pointToSegmentDistance(pt, segA, dot);
+            if (d < minDist) minDist = d;
+          }
+        });
+        if (minDist > maxTolerance) {
+          handleResetToStart('⚠️ Wandered off path! Let’s restart from the beginning.');
+          return;
+        }
+      }
+    }
+
     checkDotProximity(pt);
 
     if (currentStroke.length % 5 === 0) {
@@ -433,33 +840,56 @@ export default function TracingGameModal({
     const connectedCount = visitedDots.size;
     const percentage = Math.round((connectedCount / totalDots) * 100);
 
-    // If user has connected at least 85% of the dots (or all dots)
-    const passed = connectedCount >= Math.ceil(totalDots * 0.85);
+    // Completion condition: connected all dots (or >=85% in easy mode)
+    const passed =
+      difficulty === 'hard'
+        ? connectedCount === totalDots
+        : connectedCount >= Math.ceil(totalDots * 0.85);
 
     if (passed) {
+      // Connect closing loop segment if full shape completed
+      if (connectedCount === totalDots && totalDots >= 3) {
+        const firstPt = currentShape.points[visitedOrder[0]];
+        const lastPt = currentShape.points[visitedOrder[visitedOrder.length - 1]];
+        setCompletedSegments((prev) => [...prev, { from: lastPt, to: firstPt }]);
+      }
+
       sfx.playSuccess();
-      const pointsAwarded = percentage + 100;
-      setScore((s) => s + pointsAwarded);
-      setStars((st) => st + (percentage >= 95 ? 3 : percentage >= 85 ? 2 : 1));
-      setFeedbackMessage(`🌟 Outstanding! All ${connectedCount} / ${totalDots} dots connected! +${pointsAwarded} pts`);
+      const pointsAwarded = percentage + (difficulty === 'hard' ? 180 : 100);
+      const earnedStars = percentage >= 95 ? 3 : percentage >= 85 ? 2 : 1;
+
+      const updatedScore = score + pointsAwarded;
+      const updatedStars = stars + earnedStars;
+
+      setScore(updatedScore);
+      setStars(updatedStars);
+      setFeedbackMessage(
+        `🌟 Outstanding! ${connectedCount}/${totalDots} dots connected in ${difficulty} mode! +${pointsAwarded} pts`
+      );
 
       confetti({
-        particleCount: 60,
-        spread: 70,
+        particleCount: 70,
+        spread: 75,
         origin: { y: 0.6 },
       });
 
+      // Progress forward to next shape in Training mode!
       if (currentShapeIndex + 1 < normalizedShapes.length) {
         setTimeout(() => {
-          setCurrentShapeIndex((idx) => idx + 1);
+          const nextIdx = currentShapeIndex + 1;
+          setCurrentShapeIndex(nextIdx);
           setVisitedDots(new Set());
+          setVisitedOrder([]);
+          setCompletedSegments([]);
           setCurrentStroke([]);
-        }, 1400);
+          notifyStateChange(nextIdx, difficulty, updatedScore, updatedStars);
+        }, 1300);
       } else {
         setLessonCompleted(true);
         if (onLessonComplete) {
           onLessonComplete(lessonTitle);
         }
+        notifyStateChange(currentShapeIndex, difficulty, updatedScore, updatedStars);
         confetti({
           particleCount: 160,
           spread: 100,
@@ -467,24 +897,46 @@ export default function TracingGameModal({
         });
       }
     } else {
-      setFeedbackMessage(`You connected ${connectedCount} of ${totalDots} dots (${percentage}%). Trace all dots to complete!`);
+      setFeedbackMessage(
+        `Connected ${connectedCount} of ${totalDots} dots (${percentage}%). ${
+          difficulty === 'hard' ? 'Follow exact order to complete!' : 'Connect all dots to finish!'
+        }`
+      );
     }
   };
 
-  const handleResetShape = () => {
+  const handleDifficultyChange = (newDiff: 'easy' | 'hard') => {
+    setDifficulty(newDiff);
     setVisitedDots(new Set());
+    setVisitedOrder([]);
+    setCompletedSegments([]);
     setCurrentStroke([]);
-    setFeedbackMessage('Connect all the glowing numbered dots!');
+    notifyStateChange(currentShapeIndex, newDiff, score, stars);
   };
 
+  // Replay shape while REUSING picture!
+  const handleResetShape = () => {
+    setVisitedDots(new Set());
+    setVisitedOrder([]);
+    setCompletedSegments([]);
+    setCurrentStroke([]);
+    setFeedbackMessage(
+      difficulty === 'hard' ? 'Hard Mode: Follow exact order from Dot 1.' : 'Connect all numbered dots!'
+    );
+  };
+
+  // Replay all while REUSING picture!
   const handleResetAll = () => {
     setCurrentShapeIndex(0);
     setScore(0);
     setStars(0);
     setCurrentStroke([]);
     setVisitedDots(new Set());
+    setVisitedOrder([]);
+    setCompletedSegments([]);
     setLessonCompleted(false);
-    setFeedbackMessage('Connect all the glowing numbered dots!');
+    setFeedbackMessage('Connect all the glowing numbered dots in order!');
+    notifyStateChange(0, difficulty, 0, 0);
   };
 
   if (!isOpen) return null;
@@ -503,7 +955,18 @@ export default function TracingGameModal({
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-100">{lessonTitle}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-100">{lessonTitle}</h2>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                    mode === 'train'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                  }`}
+                >
+                  {mode === 'train' ? 'Training Course' : 'Studio Practice'}
+                </span>
+              </div>
               <p className="text-xs text-slate-400">
                 Shape {currentShapeIndex + 1} of {normalizedShapes.length}:{' '}
                 <span className="text-indigo-400 font-semibold">{currentShape?.label}</span>
@@ -512,9 +975,37 @@ export default function TracingGameModal({
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Difficulty Selector Toggle */}
+            <div className="flex items-center bg-slate-950 rounded-xl p-0.5 border border-slate-800 text-xs">
+              <button
+                onClick={() => handleDifficultyChange('easy')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                  difficulty === 'easy'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Easy: Relaxed order, generous 42px touch radius, lenient path tolerance"
+              >
+                Easy
+              </button>
+              <button
+                onClick={() => handleDifficultyChange('hard')}
+                className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                  difficulty === 'hard'
+                    ? 'bg-rose-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Hard: Strict 1->2->3 order, 22px touch radius, straying off path forces redo from start!"
+              >
+                <Zap className="w-3 h-3" /> Hard
+              </button>
+            </div>
+
             {/* Live Dots Counter Badge */}
             <div className="flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 rounded-full text-indigo-300 text-xs font-bold">
-              <span>{connectedDots} / {totalDots} Dots</span>
+              <span>
+                {connectedDots} / {totalDots} Dots
+              </span>
             </div>
 
             {/* Score Badge */}
@@ -545,7 +1036,13 @@ export default function TracingGameModal({
 
         {/* Tracing Canvas Area */}
         <div className="relative p-6 flex flex-col items-center justify-center bg-slate-900">
-          <div className="relative rounded-2xl overflow-hidden shadow-2xl border-2 border-indigo-500/30 bg-[#090d16]">
+          <div
+            className={`relative rounded-2xl overflow-hidden shadow-2xl border-2 transition-all duration-300 bg-[#090d16] ${
+              isOffTrackAlert
+                ? 'border-rose-500 shadow-rose-500/30 animate-shake'
+                : 'border-indigo-500/30'
+            }`}
+          >
             <canvas
               ref={canvasRef}
               onMouseDown={handlePointerDown}
@@ -558,6 +1055,14 @@ export default function TracingGameModal({
               className="cursor-crosshair touch-none select-none max-w-full h-auto"
               style={{ width: '600px', height: '480px' }}
             />
+
+            {/* Off-Track Deviation Flash Banner */}
+            {isOffTrackAlert && (
+              <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 bg-rose-950/90 border border-rose-500 text-rose-200 px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 shadow-xl animate-bounce">
+                <ShieldAlert className="w-4 h-4 text-rose-400" />
+                <span>Too far off path! Resetting to start...</span>
+              </div>
+            )}
 
             {/* Top Shape Progression Bar */}
             <div className="absolute top-3 left-3 right-3 flex gap-2 z-10">
@@ -582,6 +1087,9 @@ export default function TracingGameModal({
                 <span className="font-mono font-bold text-emerald-400">
                   {connectedDots} / {totalDots}
                 </span>
+                <span className="text-[10px] text-slate-400">
+                  ({difficulty === 'hard' ? 'Strict Sequential' : 'Relaxed Order'})
+                </span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-32 bg-slate-800 h-2 rounded-full overflow-hidden">
@@ -600,9 +1108,11 @@ export default function TracingGameModal({
                 <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-emerald-500/20">
                   <Trophy className="w-9 h-9" />
                 </div>
-                <h3 className="text-2xl font-black text-white mb-1">Tracing Mastered!</h3>
+                <h3 className="text-2xl font-black text-white mb-1">
+                  {mode === 'train' ? 'Training Course Completed!' : 'Tracing Mastered!'}
+                </h3>
                 <p className="text-sm text-slate-300 max-w-sm mb-4">
-                  Awesome tracing! You connected all dots on {lessonTitle} and scored {score} points with {stars} stars!
+                  Outstanding job! You connected all dots in {difficulty} mode, scoring {score} points and earning {stars} stars while keeping clean lines!
                 </p>
                 <div className="flex gap-3">
                   <button
@@ -622,9 +1132,15 @@ export default function TracingGameModal({
             )}
           </div>
 
-          {/* Feedback & Instructions */}
+          {/* Feedback & Instructions Bar */}
           <div className="mt-3 w-full max-w-xl flex items-center justify-between text-xs px-2">
-            <span className="text-slate-300 font-medium">{feedbackMessage}</span>
+            <span
+              className={`font-medium ${
+                isOffTrackAlert ? 'text-rose-400 font-bold' : 'text-slate-300'
+              }`}
+            >
+              {feedbackMessage}
+            </span>
             <span className="text-slate-500">
               {connectedDots >= totalDots
                 ? '🎉 All dots connected!'
@@ -635,7 +1151,11 @@ export default function TracingGameModal({
 
         {/* Footer controls */}
         <div className="px-6 py-3 border-t border-slate-800 bg-slate-950/50 flex items-center justify-between text-xs text-slate-400">
-          <span>💡 Tip: Drag your finger or mouse from dot 1 through each number in order!</span>
+          <span>
+            {difficulty === 'hard'
+              ? '💡 Hard Rules: Trace dots 1, 2, 3... in exact order without straying off the line!'
+              : '💡 Easy Rules: Connect dots smoothly. Faint lines stay permanently illuminated!'}
+          </span>
           <button
             onClick={handleResetShape}
             className="hover:text-slate-200 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/60 hover:bg-slate-800 transition-colors"

@@ -17,11 +17,14 @@ import {
   HelpCircle,
   Eye,
   Award,
+  Compass,
 } from 'lucide-react';
 import CurriculumView from '../components/CurriculumView';
-import TracingGameModal, { TracingShape } from '../components/TracingGameModal';
+import TracingGameModal, { TracingShape, TracingStateNotification } from '../components/TracingGameModal';
 import ClassroomModal from '../components/ClassroomModal';
 import { DemoLesson, getDemoLessonById, demoStorybooks } from '../lib/demoData';
+
+import { TrainingHashState, encodeHashState, decodeHashState } from '../lib/hashState';
 
 export default function Home() {
   const [basePath, setBasePath] = useState('');
@@ -45,6 +48,13 @@ export default function Home() {
   const [activeLessonId, setActiveLessonId] = useState<string>('lesson-cat-1');
   const [activeLessonTitle, setActiveLessonTitle] = useState('Cute Cat Tracing Adventure');
   const [extractedShapes, setExtractedShapes] = useState<TracingShape[]>([]);
+
+  // Training & Game progression state
+  const [gameMode, setGameMode] = useState<'train' | 'studio'>('studio');
+  const [gameDifficulty, setGameDifficulty] = useState<'easy' | 'hard'>('easy');
+  const [gameShapeIndex, setGameShapeIndex] = useState<number>(0);
+  const [gameScore, setGameScore] = useState<number>(0);
+  const [gameStars, setGameStars] = useState<number>(0);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const printCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -147,6 +157,26 @@ export default function Home() {
     setSelectedImage(initialImg);
     setActiveImageKey(initialKey);
 
+    // Read URL hash state (Base64 encoded content after #)
+    const parseHashState = () => {
+      if (typeof window === 'undefined') return;
+      const hash = window.location.hash;
+      if (hash) {
+        const decoded = decodeHashState(hash);
+        if (decoded) {
+          setGameMode(decoded.mode);
+          setGameDifficulty(decoded.diff);
+          setGameShapeIndex(decoded.idx);
+          setGameScore(decoded.score);
+          setGameStars(decoded.stars);
+          setIsGameOpen(true);
+        }
+      }
+    };
+
+    parseHashState();
+    window.addEventListener('hashchange', parseHashState);
+
     // Initialize modals
     if (urlGame === '1' || urlGame === 'true') setIsGameOpen(true);
     if (urlCurriculum === '1' || urlCurriculum === 'true') setIsCurriculumOpen(true);
@@ -160,8 +190,55 @@ export default function Home() {
       }
     }, 150);
 
-    return () => clearInterval(checkOpenCV);
+    return () => {
+      window.removeEventListener('hashchange', parseHashState);
+      clearInterval(checkOpenCV);
+    };
   }, [getAssetPath]);
+
+  const handleOpenTrainingMode = useCallback(() => {
+    const initialState: TrainingHashState = {
+      mode: 'train',
+      diff: 'easy',
+      idx: 0,
+      score: 0,
+      stars: 0,
+    };
+    setGameMode('train');
+    setGameDifficulty('easy');
+    setGameShapeIndex(0);
+    setGameScore(0);
+    setGameStars(0);
+    setIsGameOpen(true);
+    if (typeof window !== 'undefined') {
+      window.location.hash = 'state=' + encodeHashState(initialState);
+    }
+  }, []);
+
+  const handleOpenStudioGame = useCallback(() => {
+    setGameMode('studio');
+    setIsGameOpen(true);
+    updateUrlParams({ game: '1' });
+  }, [updateUrlParams]);
+
+  const handleGameStateChange = useCallback((state: TracingStateNotification) => {
+    setGameMode(state.mode);
+    setGameDifficulty(state.difficulty);
+    setGameShapeIndex(state.shapeIndex);
+    setGameScore(state.score);
+    setGameStars(state.stars);
+    if (typeof window !== 'undefined') {
+      window.location.hash =
+        'state=' +
+        encodeHashState({
+          mode: state.mode,
+          diff: state.difficulty,
+          idx: state.shapeIndex,
+          score: state.score,
+          stars: state.stars,
+        });
+    }
+  }, []);
 
   // Pure Canvas Vectorization & Outlines Engine (Guaranteed zero-dependency fallback)
   const processWithCanvasEngine = useCallback(
@@ -531,10 +608,13 @@ export default function Home() {
 
           <nav className="hidden md:flex items-center gap-2 text-sm font-semibold text-slate-600">
             <button
-              onClick={() => {
-                setIsGameOpen(true);
-                updateUrlParams({ game: '1' });
-              }}
+              onClick={handleOpenTrainingMode}
+              className="px-3.5 py-2 rounded-xl hover:text-amber-600 hover:bg-amber-50 transition-colors flex items-center gap-1.5 text-amber-700 font-bold bg-amber-500/10 border border-amber-500/20"
+            >
+              <Compass className="w-4 h-4 text-amber-500" /> Train Mode
+            </button>
+            <button
+              onClick={handleOpenStudioGame}
               className="px-3.5 py-2 rounded-xl hover:text-indigo-600 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
             >
               <Gamepad2 className="w-4 h-4 text-indigo-500" /> Tracing Game
@@ -568,10 +648,7 @@ export default function Home() {
             </div>
 
             <button
-              onClick={() => {
-                setIsGameOpen(true);
-                updateUrlParams({ game: '1' });
-              }}
+              onClick={handleOpenStudioGame}
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-xl transition-all shadow-md shadow-indigo-600/20 flex items-center gap-1.5"
             >
               <Play className="w-4 h-4 fill-white" /> Play Game
@@ -622,10 +699,14 @@ export default function Home() {
               </button>
 
               <button
-                onClick={() => {
-                  setIsGameOpen(true);
-                  updateUrlParams({ game: '1' });
-                }}
+                onClick={handleOpenTrainingMode}
+                className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all shadow-md shadow-amber-500/30 flex items-center gap-2"
+              >
+                <Compass className="w-4 h-4" /> Train Shapes (Progression)
+              </button>
+
+              <button
+                onClick={handleOpenStudioGame}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-sm transition-all shadow-md shadow-emerald-600/30 flex items-center gap-2"
               >
                 <Play className="w-4 h-4 fill-white" /> Trace in Interactive Game
@@ -949,10 +1030,19 @@ export default function Home() {
         onClose={() => {
           setIsGameOpen(false);
           updateUrlParams({ game: null });
+          if (typeof window !== 'undefined' && window.location.hash) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
         }}
-        lessonTitle={activeLessonTitle}
+        lessonTitle={gameMode === 'train' ? 'Guided Training Progression' : activeLessonTitle}
         imageUrl={selectedImage}
-        shapes={extractedShapes.length > 0 ? extractedShapes : undefined}
+        shapes={gameMode === 'train' ? undefined : (extractedShapes.length > 0 ? extractedShapes : undefined)}
+        mode={gameMode}
+        initialDifficulty={gameDifficulty}
+        initialShapeIndex={gameShapeIndex}
+        initialScore={gameScore}
+        initialStars={gameStars}
+        onStateChange={handleGameStateChange}
       />
 
       {!isGithubPagesPreview && (
