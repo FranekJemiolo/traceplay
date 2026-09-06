@@ -479,6 +479,13 @@ export default function TracingGameModal({
     [mode, difficulty, currentShapeIndex, score, stars, onStateChange]
   );
 
+  // Sync state to URL hash as soon as the modal opens
+  useEffect(() => {
+    if (isOpen) {
+      notifyStateChange(currentShapeIndex, difficulty, score, stars);
+    }
+  }, [isOpen]);
+
   // Load background image (and retain it across shapes/replays!)
   useEffect(() => {
     if (!imageUrl) {
@@ -991,6 +998,9 @@ export default function TracingGameModal({
         spread: 75,
         origin: { y: 0.6 },
       });
+
+      // Update state and URL immediately upon completing the shape!
+      notifyStateChange(currentShapeIndex, difficulty, updatedScore, updatedStars);
 
       // Progress forward to next shape in Training mode!
       if (currentShapeIndex + 1 < normalizedShapes.length) {

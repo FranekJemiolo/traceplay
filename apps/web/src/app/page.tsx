@@ -201,6 +201,18 @@ export default function Home() {
     };
   }, [getAssetPath]);
 
+  // Sync game and training progression state to the URL hash (directly after #)
+  const updateUrlHashState = useCallback((state: TrainingHashState) => {
+    if (typeof window === 'undefined') return;
+    const base64 = encodeHashState(state);
+    const url = new URL(window.location.href);
+    url.hash = base64;
+    window.history.replaceState(null, '', url.toString());
+    try {
+      window.location.hash = base64;
+    } catch {}
+  }, []);
+
   const handleOpenTrainingMode = useCallback(() => {
     const initialState: TrainingHashState = {
       mode: 'train',
@@ -215,35 +227,39 @@ export default function Home() {
     setGameScore(0);
     setGameStars(0);
     setIsGameOpen(true);
-    if (typeof window !== 'undefined') {
-      window.location.hash = 'state=' + encodeHashState(initialState);
-    }
-  }, []);
+    updateUrlHashState(initialState);
+  }, [updateUrlHashState]);
 
   const handleOpenStudioGame = useCallback(() => {
     setGameMode('studio');
     setIsGameOpen(true);
     updateUrlParams({ game: '1' });
-  }, [updateUrlParams]);
+    updateUrlHashState({
+      mode: 'studio',
+      diff: gameDifficulty,
+      idx: gameShapeIndex,
+      score: gameScore,
+      stars: gameStars,
+    });
+  }, [updateUrlParams, updateUrlHashState, gameDifficulty, gameShapeIndex, gameScore, gameStars]);
 
-  const handleGameStateChange = useCallback((state: TracingStateNotification) => {
-    setGameMode(state.mode);
-    setGameDifficulty(state.difficulty);
-    setGameShapeIndex(state.shapeIndex);
-    setGameScore(state.score);
-    setGameStars(state.stars);
-    if (typeof window !== 'undefined') {
-      window.location.hash =
-        'state=' +
-        encodeHashState({
-          mode: state.mode,
-          diff: state.difficulty,
-          idx: state.shapeIndex,
-          score: state.score,
-          stars: state.stars,
-        });
-    }
-  }, []);
+  const handleGameStateChange = useCallback(
+    (state: TracingStateNotification) => {
+      setGameMode(state.mode);
+      setGameDifficulty(state.difficulty);
+      setGameShapeIndex(state.shapeIndex);
+      setGameScore(state.score);
+      setGameStars(state.stars);
+      updateUrlHashState({
+        mode: state.mode,
+        diff: state.difficulty,
+        idx: state.shapeIndex,
+        score: state.score,
+        stars: state.stars,
+      });
+    },
+    [updateUrlHashState]
+  );
 
   // Pure Canvas Vectorization & Outlines Engine (Guaranteed zero-dependency fallback)
   const processWithCanvasEngine = useCallback(
@@ -1170,9 +1186,6 @@ export default function Home() {
         onClose={() => {
           setIsGameOpen(false);
           updateUrlParams({ game: null });
-          if (typeof window !== 'undefined' && window.location.hash) {
-            window.history.replaceState(null, '', window.location.pathname + window.location.search);
-          }
         }}
         lessonTitle={gameMode === 'train' ? 'Guided Training Progression' : activeLessonTitle}
         imageUrl={selectedImage}
