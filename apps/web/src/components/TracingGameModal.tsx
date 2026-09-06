@@ -54,6 +54,7 @@ interface TracingGameModalProps {
   initialShapeIndex?: number;
   initialScore?: number;
   initialStars?: number;
+  maxDotsLimit?: number;
   onStateChange?: (state: TracingStateNotification) => void;
 }
 
@@ -313,6 +314,7 @@ export default function TracingGameModal({
   initialShapeIndex = 0,
   initialScore = 0,
   initialStars = 0,
+  maxDotsLimit = 100,
   onStateChange,
 }: TracingGameModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -396,11 +398,9 @@ export default function TracingGameModal({
     const canvasH = 480;
     const margin = 50;
 
-    // Minimum distance threshold to ensure dots NEVER overlap:
-    // Easy mode: larger spacing (46px) and fewer dots (max 10) for kid-friendly tracing
-    // Hard mode: exact spacing (32px) and up to 16 dots
-    const minDotDist = difficulty === 'easy' ? 46 : 32;
-    const maxDots = difficulty === 'easy' ? 10 : 16;
+    // Configurable dot limit (up to 100). Dots are NOT reduced if already <= maxDots!
+    const maxDots = Math.max(10, maxDotsLimit || 100);
+    const minDotDist = difficulty === 'easy' ? 14 : 8;
 
     return activeShapePool.map((shape) => {
       if (shape.points.length === 0) return shape;
@@ -432,8 +432,7 @@ export default function TracingGameModal({
         y: Math.round(p.y * scale + offsetY),
       }));
 
-      // Arc-length perimeter reduction + non-overlapping spacing + 2-opt untangling
-      // Guarantees zero crossing lines and a child-friendly dot count
+      // If shape already has <= maxDots, preserve all dots! Otherwise reduce gracefully.
       const finalPoints = reducePointsToLimit(fittedPoints, maxDots, minDotDist);
 
       return {
@@ -441,7 +440,7 @@ export default function TracingGameModal({
         points: finalPoints,
       };
     });
-  }, [activeShapePool, difficulty]);
+  }, [activeShapePool, difficulty, maxDotsLimit]);
 
   const currentShape = normalizedShapes[currentShapeIndex] || normalizedShapes[0];
 

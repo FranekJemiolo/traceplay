@@ -102,5 +102,43 @@ describe('Geometry Utils - Line Crossing & Untangling', () => {
       }
     );
   });
+
+  it('does not reduce points when points count is already within maxCount limit', () => {
+    const pts = [
+      { x: 100, y: 100 },
+      { x: 200, y: 100 },
+      { x: 250, y: 200 },
+      { x: 200, y: 300 },
+      { x: 100, y: 300 },
+      { x: 50, y: 200 },
+    ];
+    // Limit is 100, input has 6 points -> should keep all 6 points!
+    const result = reducePointsToLimit(pts, 100);
+    expect(result.length).toBe(6);
+  });
+
+  it('supports high dot limits up to 100 without over-reducing', () => {
+    // Generate an ellipse loop with 200 points
+    const ellipsePoints = [];
+    for (let i = 0; i < 200; i++) {
+      const angle = (i / 200) * Math.PI * 2;
+      ellipsePoints.push({
+        x: Math.round(300 + Math.cos(angle) * 200),
+        y: Math.round(240 + Math.sin(angle) * 150),
+      });
+    }
+
+    // With limit 100, should keep around 90-100 points, never dropping to 10
+    const highDensity = reducePointsToLimit(ellipsePoints, 100);
+    expect(highDensity.length).toBeGreaterThanOrEqual(80);
+    expect(highDensity.length).toBeLessThanOrEqual(100);
+    expect(hasCrossingLines(highDensity)).toBe(false);
+
+    // With limit 50, should keep around 40-50 points
+    const medDensity = reducePointsToLimit(ellipsePoints, 50);
+    expect(medDensity.length).toBeGreaterThanOrEqual(40);
+    expect(medDensity.length).toBeLessThanOrEqual(50);
+    expect(hasCrossingLines(medDensity)).toBe(false);
+  });
 });
 

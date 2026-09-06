@@ -42,6 +42,7 @@ export default function Home() {
   const [threshold, setThreshold] = useState<number>(128);
   const [dotSpacing, setDotSpacing] = useState<number>(42);
   const [lineThickness, setLineThickness] = useState<number>(2);
+  const [maxDotsLimit, setMaxDotsLimit] = useState<number>(100);
 
   // Modals state
   const [isCurriculumOpen, setIsCurriculumOpen] = useState(false);
@@ -111,6 +112,7 @@ export default function Home() {
     const urlThreshold = searchParams.get('threshold');
     const urlSpacing = searchParams.get('spacing');
     const urlThickness = searchParams.get('thickness');
+    const urlMaxDots = searchParams.get('maxDots');
     const urlLesson = searchParams.get('lesson');
     const urlGame = searchParams.get('game');
     const urlCurriculum = searchParams.get('curriculum');
@@ -125,6 +127,7 @@ export default function Home() {
     if (urlThreshold) setThreshold(Number(urlThreshold));
     if (urlSpacing) setDotSpacing(Number(urlSpacing));
     if (urlThickness) setLineThickness(Number(urlThickness));
+    if (urlMaxDots) setMaxDotsLimit(Number(urlMaxDots));
 
     // Initialize lesson & image
     let initialImg = `${detectedBasePath}/cat_sample.png`;
@@ -250,7 +253,8 @@ export default function Home() {
       mode: 'coloring' | 'dots' | 'tracing',
       threshVal: number,
       spacingVal: number,
-      thicknessVal: number
+      thicknessVal: number,
+      maxDotsParam: number = 100
     ): TracingShape[] => {
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) return [];
@@ -310,9 +314,9 @@ export default function Home() {
         }
       } else if (mode === 'dots' || mode === 'tracing') {
         // Connect-the-dots or tracing worksheet:
-        // Enforce generous spacing (min 38px) and cap dots at 10-12 to make it kid-friendly and easy
-        const minSpacing = Math.max(38, spacingVal);
-        const maxAllowedDots = 12;
+        // Configurable up to 100 dots with adaptive spacing
+        const minSpacing = Math.max(6, spacingVal);
+        const maxAllowedDots = Math.max(10, maxDotsParam);
 
         // Chain edge pixels sequentially into a continuous perimeter loop
         const orderedChain: Array<{ x: number; y: number }> = [];
@@ -321,7 +325,7 @@ export default function Home() {
           visitedEdge[0] = 1;
           orderedChain.push(edges[0]);
 
-          for (let step = 1; step < Math.min(800, edges.length); step++) {
+          for (let step = 1; step < Math.min(3000, edges.length); step++) {
             const curr = orderedChain[orderedChain.length - 1];
             let nearestIdx = -1;
             let nearestDist = 30; // Search within local radius
@@ -398,7 +402,8 @@ export default function Home() {
   const handleProcessImage = useCallback(
     async (
       targetMode: 'coloring' | 'dots' | 'tracing' = conversionMode,
-      targetImage: string = selectedImage
+      targetImage: string = selectedImage,
+      targetDotsLimit: number = maxDotsLimit
     ) => {
       if (!targetImage || !canvasRef.current) return;
 
@@ -423,9 +428,9 @@ export default function Home() {
             activeImageKey !== 'custom' ? activeImageKey : targetImage
           );
 
-          // For predefined images (sea turtle, cats), render curated dots directly in dots/tracing modes
-          // to eliminate background landscape noise (trees/clouds) and guarantee clean non-overlapping dots
-          if (activeImageKey !== 'custom' && (targetMode === 'dots' || targetMode === 'tracing')) {
+          // For sea turtle, render curated dots to eliminate background landscape noise (trees/clouds).
+          // For kittens and custom uploads, extract real authentic contours from the image!
+          if (activeImageKey === 'turtle' && (targetMode === 'dots' || targetMode === 'tracing')) {
             const ctx = canvas.getContext('2d');
             if (ctx) {
               const w = img.naturalWidth || img.width || 600;
@@ -438,8 +443,8 @@ export default function Home() {
               ctx.fillRect(0, 0, w, h);
 
               predefined.forEach((shape) => {
-                // Ensure dot count is kid-friendly (max 10 dots) and lines never cross
-                const reducedPts = reducePointsToLimit(shape.points, 10, 36);
+                // Do not over-reduce if shape points are within targetDotsLimit!
+                const reducedPts = reducePointsToLimit(shape.points, targetDotsLimit, 10);
 
                 if (targetMode === 'tracing') {
                   ctx.save();
@@ -502,23 +507,42 @@ export default function Home() {
                   if (targetMode === 'coloring') {
                     cv.drawContours(white, contours, -1, new cv.Scalar(15, 23, 42, 255), lineThickness);
                   } else {
-                    const minSpacing = Math.max(38, dotSpacing);
-                    const maxAllowedDots = 12;
+                    const minSpacing = Math.max(6, dotSpacing);
+                    const maxAllowedDots = Math.max(10, targetDotsLimit);
+
+                    // Collect and sort contours by perimeter descending so major body outlines come first
+                    const sortedContours: Array<{ cnt: any; peri: number }> = [];
                     for (let i = 0; i < contours.size(); i++) {
                       const cnt = contours.get(i);
                       const peri = cv.arcLength(cnt, true);
-                      if (peri < 80) continue; // Skip tiny noise contours
+                      if (peri >= 60) {
+                        sortedContours.push({ cnt, peri });
+                      }
+                    }
+                    sortedContours.sort((a, b) => b.peri - a.peri);
 
+                    let remainingDotsBudget = maxAllowedDots;
+
+                    for (let idx = 0; idx < Math.min(3, sortedContours.length); idx++) {
+                      const { cnt, peri } = sortedContours[idx];
                       const contourPts: { x: number; y: number }[] = [];
                       for (let j = 0; j < cnt.rows; j++) {
                         const pt = cnt.data32S.subarray(j * 2, j * 2 + 2);
                         contourPts.push({ x: pt[0], y: pt[1] });
                       }
 
+                      // Allocate dots proportionally to contour perimeter
+                      const dotsForThis = Math.min(
+                        remainingDotsBudget,
+                        Math.max(12, Math.round((peri / (sortedContours[0]?.peri || 1)) * maxAllowedDots))
+                      );
+
                       // Subsample along whole perimeter, enforce spacing & eliminate crossing lines
-                      const pts = reducePointsToLimit(contourPts, maxAllowedDots, minSpacing);
+                      const pts = reducePointsToLimit(contourPts, dotsForThis, minSpacing);
 
                       if (pts.length >= 3) {
+                        remainingDotsBudget -= pts.length;
+
                         if (targetMode === 'tracing') {
                           for (let k = 0; k < pts.length; k++) {
                             const p1 = pts[k];
@@ -531,8 +555,8 @@ export default function Home() {
                           cv.circle(white, new cv.Point(candidate.x, candidate.y), 4.5, new cv.Scalar(30, 41, 59, 255), -1);
                         });
 
-                        extracted.push({ label: `Contour #${i + 1}`, points: pts });
-                        if (extracted.length >= 2) break; // Avoid overcrowding with too many contours
+                        extracted.push({ label: `Contour #${idx + 1}`, points: pts });
+                        if (remainingDotsBudget <= 6) break;
                       }
                     }
                   }
@@ -549,15 +573,15 @@ export default function Home() {
                 }
               } catch (cvErr) {
                 console.warn('OpenCV processing threw, falling back to Canvas engine:', cvErr);
-                extracted = processWithCanvasEngine(img, canvas, targetMode, threshold, dotSpacing, lineThickness);
+                extracted = processWithCanvasEngine(img, canvas, targetMode, threshold, dotSpacing, lineThickness, targetDotsLimit);
               }
             } else {
               // Direct Pure Canvas Engine
-              extracted = processWithCanvasEngine(img, canvas, targetMode, threshold, dotSpacing, lineThickness);
+              extracted = processWithCanvasEngine(img, canvas, targetMode, threshold, dotSpacing, lineThickness, targetDotsLimit);
             }
 
-            // In coloring mode for predefined characters, use predefined shapes for interactive game
-            if (activeImageKey !== 'custom' && predefined.length > 0) {
+            // If no contours extracted, use predefined high-quality contours
+            if (extracted.length === 0 && predefined.length > 0) {
               extracted = predefined;
             }
           }
@@ -574,15 +598,14 @@ export default function Home() {
         }
       };
     },
-    [conversionMode, selectedImage, threshold, dotSpacing, lineThickness, processWithCanvasEngine]
+    [conversionMode, selectedImage, maxDotsLimit, threshold, dotSpacing, lineThickness, activeImageKey, processWithCanvasEngine]
   );
-
-  // Trigger processing when selectedImage or conversionMode changes
+  // Trigger processing when selectedImage, conversionMode, or maxDotsLimit changes
   useEffect(() => {
     if (selectedImage) {
-      handleProcessImage(conversionMode, selectedImage);
+      handleProcessImage(conversionMode, selectedImage, maxDotsLimit);
     }
-  }, [selectedImage, conversionMode]);
+  }, [selectedImage, conversionMode, maxDotsLimit]);
 
   // Mode Selection Helper
   const handleModeSelect = (mode: 'coloring' | 'dots' | 'tracing') => {
@@ -649,6 +672,14 @@ export default function Home() {
   const handleLineThicknessChange = (val: number) => {
     setLineThickness(val);
     updateUrlParams({ thickness: val.toString() });
+  };
+
+  const handleMaxDotsLimitChange = (val: number) => {
+    setMaxDotsLimit(val);
+    updateUrlParams({ maxDots: val.toString() });
+    if (selectedImage) {
+      handleProcessImage(conversionMode, selectedImage, val);
+    }
   };
 
   const handlePrintWorksheet = () => {
@@ -953,11 +984,34 @@ export default function Home() {
                   />
                 </div>
               )}
+
+              {(conversionMode === 'dots' || conversionMode === 'tracing') && (
+                <div>
+                  <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
+                    <span>Max Dots Limit</span>
+                    <span className="text-indigo-600 font-mono">{maxDotsLimit} dots</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="10"
+                    max="100"
+                    step="5"
+                    value={maxDotsLimit}
+                    onChange={(e) => handleMaxDotsLimitChange(Number(e.target.value))}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                    <span>10 (kid-friendly)</span>
+                    <span>50</span>
+                    <span>100 (detailed)</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Re-apply Action Button */}
             <button
-              onClick={() => handleProcessImage(conversionMode, selectedImage)}
+              onClick={() => handleProcessImage(conversionMode, selectedImage, maxDotsLimit)}
               disabled={isProcessing}
               className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold py-3 rounded-xl transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
             >
@@ -1128,6 +1182,7 @@ export default function Home() {
         initialShapeIndex={gameShapeIndex}
         initialScore={gameScore}
         initialStars={gameStars}
+        maxDotsLimit={maxDotsLimit}
         onStateChange={handleGameStateChange}
       />
 

@@ -102,15 +102,21 @@ export function untanglePolygon(points: Point[], maxIterations = 60): Point[] {
 }
 
 /**
- * Subsamples and bounds point count to a child-friendly limit, enforcing non-overlapping
- * distances and untangling so lines never cross.
+ * Subsamples and bounds point count to a configurable limit (up to 100 dots).
+ * If there aren't too many dots (points.length <= maxCount), does NOT reduce them.
+ * Enforces non-overlapping spacing and untangles so lines never cross.
  */
 export function reducePointsToLimit(
   points: Point[],
-  maxCount: number = 10,
-  minSpacing: number = 38
+  maxCount: number = 100,
+  minSpacing: number = 8
 ): Point[] {
   if (points.length <= 3) return points;
+
+  // Do not reduce the dots if there aren't too many!
+  if (points.length <= maxCount) {
+    return untanglePolygon(points);
+  }
 
   // 1. Calculate cumulative perimeter lengths along closed loop
   const n = points.length;
@@ -126,9 +132,11 @@ export function reducePointsToLimit(
     return untanglePolygon(points.slice(0, maxCount));
   }
 
-  // Choose target count capped between 4 and maxCount
-  const targetK = Math.min(Math.max(4, maxCount), points.length);
+  // Subsample exactly to maxCount along the continuous perimeter loop
+  const targetK = Math.min(maxCount, points.length);
   const targetStep = totalPerimeter / targetK;
+  // Adaptive spacing threshold so high dot limits (e.g. 50-100) are never decimated
+  const safeSpacing = Math.max(3, Math.min(minSpacing, totalPerimeter / (targetK * 1.6)));
 
   const sampled: Point[] = [];
   for (let k = 0; k < targetK; k++) {
@@ -142,20 +150,19 @@ export function reducePointsToLimit(
     }
     const pt = points[foundIdx];
 
-    // Distance check to ensure no overlap with already selected points
     const tooClose = sampled.some(
-      (s) => Math.hypot(s.x - pt.x, s.y - pt.y) < minSpacing
+      (s) => Math.hypot(s.x - pt.x, s.y - pt.y) < safeSpacing
     );
     if (!tooClose) {
       sampled.push({ x: Math.round(pt.x), y: Math.round(pt.y) });
     }
   }
 
-  // Ensure closure distance is also respected
+  // Check closure distance
   if (sampled.length > 3) {
     const last = sampled[sampled.length - 1];
     const first = sampled[0];
-    if (Math.hypot(last.x - first.x, last.y - first.y) < minSpacing) {
+    if (Math.hypot(last.x - first.x, last.y - first.y) < safeSpacing) {
       sampled.pop();
     }
   }
