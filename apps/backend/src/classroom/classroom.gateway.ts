@@ -16,7 +16,7 @@ interface SessionState {
     showSolution: boolean;
     allowSkipping: boolean;
   };
-  students: Map<string, any>;
+  students: Record<string, any>;
 }
 
 @WebSocketGateway({
@@ -76,15 +76,15 @@ export class ClassroomGateway implements OnGatewayConnection, OnGatewayDisconnec
             showSolution: false,
             allowSkipping: false,
           },
-          students: new Map(),
+          students: {},
         });
       }
 
-      const state = this.sessionStates.get(payload.sessionId);
+      const state = this.sessionStates.get(payload.sessionId)!;
       if (payload.role === 'TEACHER') {
-        state.students.set(payload.userId, { role: 'TEACHER' });
+        state.students[payload.userId] = { role: 'TEACHER' };
       } else {
-        state.students.set(payload.userId, { role: 'STUDENT', progress: 0 });
+        state.students[payload.userId] = { role: 'STUDENT', progress: 0 };
       }
 
       this.server.to(payload.sessionId).emit('student-joined', { userId: payload.userId, role: payload.role });
@@ -112,9 +112,8 @@ export class ClassroomGateway implements OnGatewayConnection, OnGatewayDisconnec
     @MessageBody() payload: { sessionId: string; userId: string; progress: number },
   ) {
     const state = this.sessionStates.get(payload.sessionId);
-    if (state && state.students.has(payload.userId)) {
-      const student = state.students.get(payload.userId);
-      student.progress = payload.progress;
+    if (state && state.students[payload.userId]) {
+      state.students[payload.userId].progress = payload.progress;
       this.server.to(payload.sessionId).emit('student-progress', { userId: payload.userId, progress: payload.progress });
     }
   }
@@ -138,8 +137,8 @@ export class ClassroomGateway implements OnGatewayConnection, OnGatewayDisconnec
   ) {
     client.leave(payload.sessionId);
     const state = this.sessionStates.get(payload.sessionId);
-    if (state) {
-      state.students.delete(payload.userId);
+    if (state && state.students[payload.userId]) {
+      delete state.students[payload.userId];
       this.server.to(payload.sessionId).emit('student-left', { userId: payload.userId });
     }
   }

@@ -12,19 +12,13 @@ export class TracePlay {
       ...config,
     };
     
-    // In demo mode, disable iframe mounting to prevent API calls
+    // In demo mode, log info
     if (typeof window !== 'undefined' && window.location.hostname.includes('github.io')) {
-      console.warn('TracePlay SDK: Demo mode detected - iframe mounting disabled');
+      console.info('TracePlay SDK: Demo mode active');
     }
   }
 
   mount(container: string | HTMLElement, options?: TracePlayOptions): void {
-    // Prevent iframe mounting in demo mode
-    if (typeof window !== 'undefined' && window.location.hostname.includes('github.io')) {
-      console.warn('TracePlay SDK: Cannot mount iframe in demo mode');
-      return;
-    }
-
     if (typeof container === 'string') {
       this.container = document.querySelector(container);
     } else {

@@ -55,6 +55,13 @@ jobs:
       - name: Build packages
         run: pnpm run build --filter=@traceplay/runtime --filter=@traceplay/vector --filter=@traceplay/annotation --filter=@traceplay/curriculum --filter=@traceplay/quiz --filter=@traceplay/ui --filter=@traceplay/embed-sdk
 
+      - name: Generate Prisma Client & Build Backend
+        run: |
+          pnpm run prisma:generate
+          pnpm run build --filter=@traceplay/backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/traceplay
+
       - name: Build web app (full mode)
         run: pnpm run build --filter=@traceplay/web
         env:
@@ -81,7 +88,7 @@ jobs:
           [ -d packages/quiz/dist ] && echo "✓ quiz built"
           [ -d packages/ui/dist ] && echo "✓ ui built"
           [ -d packages/embed-sdk/dist ] && echo "✓ embed-sdk built"
+          [ -d apps/backend/dist ] && echo "✓ backend built"
           [ -d apps/worker/dist ] && echo "✓ worker built"
           [ -d apps/game/dist ] && echo "✓ game built"
           [ -d apps/web/.next ] && echo "✓ web built"
-          echo "Note: Backend build skipped in CI (requires database setup)"

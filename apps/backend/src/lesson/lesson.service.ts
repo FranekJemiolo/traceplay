@@ -7,8 +7,16 @@ export class LessonService {
   constructor(private prisma: PrismaService) {}
 
   async create(createLessonDto: CreateLessonDto) {
+    const { storybookId, shapes, quizzes, ...rest } = createLessonDto;
     return this.prisma.lesson.create({
-      data: createLessonDto,
+      data: {
+        ...rest,
+        shapes: shapes ?? [],
+        quizzes: quizzes ?? [],
+        storybook: {
+          connect: { id: storybookId },
+        },
+      },
       include: {
         storybook: true,
       },
@@ -43,9 +51,15 @@ export class LessonService {
   }
 
   async update(id: string, updateLessonDto: Partial<CreateLessonDto>) {
+    const { storybookId, shapes, quizzes, ...rest } = updateLessonDto;
     const lesson = await this.prisma.lesson.update({
       where: { id },
-      data: updateLessonDto,
+      data: {
+        ...rest,
+        ...(shapes !== undefined ? { shapes } : {}),
+        ...(quizzes !== undefined ? { quizzes } : {}),
+        ...(storybookId ? { storybook: { connect: { id: storybookId } } } : {}),
+      },
       include: {
         storybook: true,
       },

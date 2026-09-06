@@ -53,3 +53,25 @@ export function toBezierSVG(points: Point[]): string {
 
   return d;
 }
+
+export function generateDots(points: Point[], spacing = 20): (Point & { number: number })[] {
+  if (points.length === 0) return [];
+  const dots: (Point & { number: number })[] = [];
+  let accumulated = 0;
+  let dotNumber = 1;
+
+  dots.push({ ...points[0], number: dotNumber++ });
+
+  for (let i = 1; i < points.length; i++) {
+    const p1 = points[i - 1];
+    const p2 = points[i];
+    const dist = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+    accumulated += dist;
+    if (accumulated >= spacing) {
+      dots.push({ ...p2, number: dotNumber++ });
+      accumulated = 0;
+    }
+  }
+
+  return dots;
+}

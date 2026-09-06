@@ -1,7 +1,8 @@
 import cv from 'opencv.js';
 import { Point, Shape } from './types';
+import { simplify, toBezierSVG } from './utils';
 
-export function extractContours(image: HTMLImageElement): Shape[] {
+export function extractContours(image: HTMLImageElement | HTMLCanvasElement, epsilon = 2): Shape[] {
   const src = cv.imread(image);
   const gray = new cv.Mat();
   const edges = new cv.Mat();
@@ -35,6 +36,9 @@ export function extractContours(image: HTMLImageElement): Shape[] {
 
     if (points.length < 3) continue;
 
+    const simplified = simplify(points, epsilon);
+    const svgPath = toBezierSVG(simplified);
+
     const xs = points.map(p => p.x);
     const ys = points.map(p => p.y);
     const minX = Math.min(...xs);
@@ -43,7 +47,7 @@ export function extractContours(image: HTMLImageElement): Shape[] {
     const maxY = Math.max(...ys);
 
     shapes.push({
-      path: '',
+      path: svgPath,
       bbox: {
         x: minX,
         y: minY,
@@ -51,7 +55,7 @@ export function extractContours(image: HTMLImageElement): Shape[] {
         height: maxY - minY,
       },
       complexity: points.length,
-      points,
+      points: simplified,
     });
   }
 

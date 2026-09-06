@@ -2,6 +2,34 @@
 
 An AI-powered educational SaaS platform that transforms images into interactive tracing and learning experiences. Features include shape recognition, adaptive quizzes, curriculum management, and real-time classroom sessions.
 
+---
+
+## 📸 Platform Previews & Visual Showcase
+
+### 1. Activity Studio (Photo to Coloring & Tracing Converter)
+Convert photos and images into coloring pages, connect-the-dots, and interactive tracing exercises with real-time OpenCV.js processing and threshold fine-tuning.
+
+![Activity Studio Preview](./docs/images/activity_studio_preview.png)
+
+### 2. Interactive Tracing Game (Phaser 3 & Web Audio Engine)
+Real-time tactile stroke tracing with glowing neon lines, numbered guide dots, audio feedback tones, accuracy calculation, and celebratory particle rewards.
+
+![Interactive Tracing Game](./docs/images/tracing_game_preview.png)
+
+### 3. Live Classroom & Teacher/Student Dashboard
+Real-time Socket.IO synchronization allowing instructors to monitor all student canvases live, push lesson steps, and receive student hand-raise notifications.
+
+![Live Classroom Dashboard](./docs/images/classroom_live_preview.png)
+
+### 4. Sample Test Imagery (Cat Coloring Conversion)
+TracePlay includes high-contrast test images ready to be converted into custom coloring book sheets and connect-the-dots worksheets:
+
+| Original Cute Kitten (`cat_sample.png`) | Playful Kitten with Yarn (`cat_playful.png`) |
+| :---: | :---: |
+| <img src="./docs/images/cat_sample.png" width="280" alt="Cute Kitten" /> | <img src="./docs/images/cat_playful.png" width="280" alt="Playful Kitten" /> |
+
+---
+
 ## Architecture
 
 TracePlay is built as a monorepo using pnpm workspaces with the following structure:
@@ -284,67 +312,25 @@ NEXT_PUBLIC_API_URL=http://localhost:3000
 OPENAI_API_KEY=your_key_here
 ```
 
-## Deployment
+## Deployment & Operating Modes
 
-TracePlay supports two deployment modes:
+TracePlay supports two operational modes:
 
-### TODO: Production Mode Features
+### 1. Full SaaS Platform Mode (Backend + Web + Game + Worker)
+Includes all microservices for production use:
+- **NestJS API**: Authentication, storybooks, lessons, modules, and quizzes.
+- **WebSocket Gateway**: Real-time teacher/student classroom sessions with live canvas synchronization.
+- **PostgreSQL Database**: Persistent users, lessons, progression metrics, and curriculum graphs.
+- **BullMQ & Redis**: Headless asynchronous vector processing and job queues.
+- **Phaser 3 Game Engine**: Interactive WebGL tracing with audio synthesis and scoring.
 
-The following features are temporarily removed from the frontend to focus on core image conversion functionality. See [DECISIONS.md](./DECISIONS.md) for detailed reasoning.
-
-**Future Production UI Components:**
-
-1. **Interactive Tracing Card**
-   - Phaser-based tracing game
-   - Real-time shape recognition
-   - Progress tracking (65% complete indicator)
-   - Requires: Backend game server
-
-2. **Adaptive Quizzes Card**
-   - AI-generated quizzes
-   - Adaptive difficulty
-   - Performance analytics (40% complete indicator)
-   - Requires: AI backend service
-
-3. **Curriculum View Button**
-   - Module-based organization
-   - Skill dependency graph
-   - Progress tracking
-   - Requires: Backend API
-
-4. **Classroom Mode Card**
-   - Live instructor sessions
-   - Real-time collaboration
-   - WebSocket-based interactions
-   - Requires: WebSocket server
-
-5. **Getting Started Guide**
-   - Basic shapes introduction
-   - Shape recognition basics
-
-6. **Advanced Techniques Guide**
-   - Complex patterns
-   - Artistic tracing
-
-**Current Simplified UI:**
-- Load Sample Image
-- Upload Image
-- Convert to Coloring Page
-- Convert to Connect Dots
-- Generate
-- Print
-- Save
-
-**Migration Path:**
-When re-introducing production features:
-1. Implement backend services (game server, AI service, WebSocket server, API)
-2. Add feature flags for gradual rollout
-3. Test each feature independently
-4. Update UI to include feature cards
-5. Integrate with existing image converter
-6. Full integration testing
-
-### Demo Mode (Frontend-Only)
+### 2. Demo Mode (Zero-Dependency Client-Side)
+Runs entirely in the browser using OpenCV.js without requiring a backend database or Redis. This powers the live GitHub Pages deployment:
+- Client-side contour extraction and Douglas-Peucker simplification.
+- Interactive side-by-side coloring and connect-the-dots activity generation.
+- Full offline curriculum explorer and HTML5 canvas interactive tracing with Web Audio synthesis.
+- Print worksheet export.
+- Live deployment: https://franekjemiolo.github.io/traceplay/
 The demo mode runs entirely in the browser without backend dependencies. This is ideal for:
 - GitHub Pages deployment
 - Quick demos and testing

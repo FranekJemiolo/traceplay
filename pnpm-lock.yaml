@@ -8,9 +8,15 @@ importers:
 
   .:
     devDependencies:
+      '@prisma/client':
+        specifier: 5.22.0
+        version: 5.22.0(prisma@5.22.0)
       '@types/node':
         specifier: ^20.10.0
         version: 20.19.39
+      prisma:
+        specifier: 5.22.0
+        version: 5.22.0
       turbo:
         specifier: ^1.11.0
         version: 1.13.4
@@ -48,7 +54,7 @@ importers:
         specifier: ^10.0.0
         version: 10.4.22(@nestjs/common@10.4.22)(@nestjs/core@10.4.22)(@nestjs/platform-socket.io@10.4.22)(reflect-metadata@0.1.14)(rxjs@7.8.2)
       '@prisma/client':
-        specifier: ^5.0.0
+        specifier: 5.22.0
         version: 5.22.0(prisma@5.22.0)
       '@traceplay/annotation':
         specifier: workspace:*
@@ -130,7 +136,7 @@ importers:
         specifier: ^9.0.0
         version: 9.0.8
       prisma:
-        specifier: ^5.0.0
+        specifier: 5.22.0
         version: 5.22.0
       typescript:
         specifier: ^5.3.0
@@ -160,6 +166,12 @@ importers:
 
   apps/web:
     dependencies:
+      canvas-confetti:
+        specifier: ^1.9.2
+        version: 1.9.4
+      lucide-react:
+        specifier: ^0.300.0
+        version: 0.300.0(react@18.3.1)
       next:
         specifier: 14.0.4
         version: 14.0.4(@babel/core@7.29.0)(react-dom@18.3.1)(react@18.3.1)
@@ -173,6 +185,9 @@ importers:
       '@testing-library/jest-dom':
         specifier: ^6.1.0
         version: 6.9.1
+      '@types/canvas-confetti':
+        specifier: ^1.9.0
+        version: 1.9.0
       '@types/jest':
         specifier: ^29.5.0
         version: 29.5.14
@@ -1603,7 +1618,6 @@ packages:
         optional: true
     dependencies:
       prisma: 5.22.0
-    dev: false
 
   /@prisma/debug@5.22.0:
     resolution: {integrity: sha512-AUt44v3YJeggO2ZU5BkXI7M4hu9BF2zzH2iF2V5pyXT/lRTyWiElZ7It+bRH1EshoMRxHgpYg4VB6rCM+mG5jQ==}
@@ -1930,6 +1944,10 @@ packages:
     dependencies:
       '@types/connect': 3.4.38
       '@types/node': 20.19.39
+    dev: true
+
+  /@types/canvas-confetti@1.9.0:
+    resolution: {integrity: sha512-aBGj/dULrimR1XDZLtG9JwxX1b4HPRF6CX9Yfwh3NvstZEm1ZL7RBnel4keCPSqs1ANRu1u2Aoz9R+VmtjYuTg==}
     dev: true
 
   /@types/connect@3.4.38:
@@ -2779,6 +2797,10 @@ packages:
 
   /caniuse-lite@1.0.30001790:
     resolution: {integrity: sha512-bOoxfJPyYo+ds6W0YfptaCWbFnJYjh2Y1Eow5lRv+vI2u8ganPZqNm1JwNh0t2ELQCqIWg4B3dWEusgAmsoyOw==}
+
+  /canvas-confetti@1.9.4:
+    resolution: {integrity: sha512-yxQbJkAVrFXWNbTUjPqjF7G+g6pDotOUHGbkZq2NELZUMDpiJ85rIEazVb8GTaAptNW2miJAXbs1BtioA251Pw==}
+    dev: false
 
   /chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==}
@@ -4921,6 +4943,14 @@ packages:
     dependencies:
       yallist: 3.1.1
 
+  /lucide-react@0.300.0(react@18.3.1):
+    resolution: {integrity: sha512-rQxUUCmWAvNLoAsMZ5j04b2+OJv6UuNLYMY7VK0eVlm4aTwUEjEEHc09/DipkNIlhXUSDn2xoyIzVT0uh7dRsg==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0
+    dependencies:
+      react: 18.3.1
+    dev: false
+
   /luxon@3.7.2:
     resolution: {integrity: sha512-vtEhXh/gNjI9Yg1u4jX/0YVPMvxzHuGgCm6tC5kZyb08yjGWGnqAjGJvcXbqQR2P3MyMEFnRbpcdFS6PBcLqew==}
     engines: {node: '>=12'}
@@ -6667,6 +6697,7 @@ packages:
 
   /uuid@8.3.2:
     resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
     dev: false
 

@@ -10,14 +10,16 @@ datasource db {
 model User {
   id            String    @id @default(uuid())
   email         String    @unique
+  password      String    @default("")
   name          String?
+  avatarUrl     String?
   role          UserRole  @default(STUDENT)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   sessions      Session[]
   progress      StudentProgress[]
-  storybooks     Storybook[]
+  storybooks    Storybook[]
 }
 
 enum UserRole {
@@ -45,7 +47,11 @@ model Lesson {
   storybook   Storybook @relation(fields: [storybookId], references: [id])
   title       String
   order       Int
+  difficulty  String   @default("beginner")
   imageUrl    String?
+  vectorSvg   String?
+  dotPoints   Json?
+  metadata    Json?
   shapes      Json
   quizzes     Json
   createdAt   DateTime @default(now())

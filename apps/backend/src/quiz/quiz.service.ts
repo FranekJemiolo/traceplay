@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { generateQuiz } from '@traceplay/quiz';
+import { QuizType } from '@prisma/client';
 
 @Injectable()
 export class QuizService {
@@ -11,9 +12,13 @@ export class QuizService {
     return quiz;
   }
 
-  async create(data: { prompt: string; type: string; options: any; correctAnswer: string; lessonId?: string }) {
+  async create(data: { prompt: string; type: QuizType | string; options: any; correctAnswer: string; lessonId?: string }) {
+    const quizType = (data.type as QuizType) || QuizType.MULTIPLE_CHOICE;
     return this.prisma.quiz.create({
-      data,
+      data: {
+        ...data,
+        type: quizType,
+      },
     });
   }
 
@@ -33,10 +38,14 @@ export class QuizService {
     });
   }
 
-  async update(id: string, data: Partial<{ prompt: string; type: string; options: any; correctAnswer: string }>) {
+  async update(id: string, data: Partial<{ prompt: string; type: QuizType | string; options: any; correctAnswer: string }>) {
+    const updateData: any = { ...data };
+    if (data.type) {
+      updateData.type = data.type as QuizType;
+    }
     return this.prisma.quiz.update({
       where: { id },
-      data,
+      data: updateData,
     });
   }
 

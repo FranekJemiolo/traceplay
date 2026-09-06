@@ -46,9 +46,12 @@ echo "Building web app in full mode (GitHub Pages)..."
 NEXT_PUBLIC_DEMO_MODE=false GITHUB_PAGES=true pnpm run build --filter=@traceplay/web
 echo "✓ Web app built in full mode (GitHub Pages)"
 
-# Note: Backend build skipped (requires Prisma Client generation with database)
+# Build backend
 echo ""
-echo "Note: Backend build skipped (requires database setup)"
+echo "Generating Prisma Client and Building backend..."
+pnpm run prisma:generate
+pnpm run build --filter=@traceplay/backend
+echo "✓ Backend built successfully"
 
 # Build worker
 echo ""
@@ -78,10 +81,10 @@ echo "Verifying build outputs..."
 [ -d packages/quiz/dist ] && echo "✓ quiz built" || echo "❌ quiz not built"
 [ -d packages/ui/dist ] && echo "✓ ui built" || echo "❌ ui not built"
 [ -d packages/embed-sdk/dist ] && echo "✓ embed-sdk built" || echo "❌ embed-sdk not built"
+[ -d apps/backend/dist ] && echo "✓ backend built" || echo "❌ backend not built"
 [ -d apps/worker/dist ] && echo "✓ worker built" || echo "❌ worker not built"
 [ -d apps/game/dist ] && echo "✓ game built" || echo "❌ game not built"
 [ -d apps/web/.next ] && echo "✓ web built" || echo "❌ web not built"
-echo "Note: Backend build verification skipped"
 
 echo ""
 echo "=== All workflow integration tests passed ==="

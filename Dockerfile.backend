@@ -1,0 +1,31 @@
+FROM node:20-alpine AS base
+
+RUN npm install -g pnpm
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
+COPY apps/backend/package.json ./apps/backend/
+COPY packages/annotation/package.json ./packages/annotation/
+COPY packages/curriculum/package.json ./packages/curriculum/
+COPY packages/quiz/package.json ./packages/quiz/
+COPY packages/runtime/package.json ./packages/runtime/
+COPY packages/vector/package.json ./packages/vector/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/embed-sdk/package.json ./packages/embed-sdk/
+
+RUN pnpm install --frozen-lockfile
+
+COPY prisma ./prisma
+COPY packages ./packages
+COPY apps/backend ./apps/backend
+
+RUN pnpm run prisma:generate
+RUN pnpm --filter @traceplay/backend build
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV NODE_ENV=production
+
+CMD ["pnpm", "--filter", "@traceplay/backend", "start:prod"]

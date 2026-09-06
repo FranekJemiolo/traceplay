@@ -16,7 +16,14 @@ export class CurriculumService {
       },
     });
 
-    const curriculum = buildCurriculum(lessons);
+    const curriculumLessons = lessons.map((l) => ({
+      id: l.id,
+      title: l.title,
+      shapes: (Array.isArray(l.shapes) ? l.shapes : []) as any[],
+      skills: ((l.metadata as any)?.skills as string[]) || [l.title],
+    }));
+
+    const curriculum = buildCurriculum(curriculumLessons);
     return curriculum;
   }
 

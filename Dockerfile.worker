@@ -1,0 +1,24 @@
+FROM node:20-alpine AS base
+
+RUN npm install -g pnpm
+
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
+COPY apps/worker/package.json ./apps/worker/
+COPY packages/annotation/package.json ./packages/annotation/
+COPY packages/curriculum/package.json ./packages/curriculum/
+COPY packages/quiz/package.json ./packages/quiz/
+COPY packages/runtime/package.json ./packages/runtime/
+COPY packages/vector/package.json ./packages/vector/
+
+RUN pnpm install --frozen-lockfile
+
+COPY packages ./packages
+COPY apps/worker ./apps/worker
+
+RUN pnpm --filter @traceplay/worker build
+
+ENV NODE_ENV=production
+
+CMD ["pnpm", "--filter", "@traceplay/worker", "start"]

@@ -3,7 +3,13 @@
 import { useState } from 'react';
 import { demoCurriculum, DemoModule, DemoLesson } from '../lib/demoData';
 
-export default function CurriculumView({ onClose }: { onClose: () => void }) {
+export default function CurriculumView({
+  onClose,
+  onStartLesson,
+}: {
+  onClose: () => void;
+  onStartLesson?: (lesson: DemoLesson) => void;
+}) {
   const [selectedModule, setSelectedModule] = useState<DemoModule | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<DemoLesson | null>(null);
 
@@ -75,10 +81,14 @@ export default function CurriculumView({ onClose }: { onClose: () => void }) {
                   />
                 </div>
                 <button
-                  className="mt-4 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                  onClick={() => alert('Demo Mode: Lesson would load in full version')}
+                  className="mt-4 w-full bg-indigo-600 text-white font-medium py-2.5 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm flex items-center justify-center gap-2"
+                  onClick={() => {
+                    if (onStartLesson && selectedLesson) {
+                      onStartLesson(selectedLesson);
+                    }
+                  }}
                 >
-                  Start Lesson
+                  🚀 Start Interactive Tracing Lesson
                 </button>
               </div>
             </div>
